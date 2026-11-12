@@ -1,3 +1,4 @@
+#requires -Version 7.0
 param(
     [Parameter(Mandatory = $true)][string]$Installer,
     [string]$Report = "build/reports/install-windows.json"
@@ -34,9 +35,30 @@ function Path-Entries([string]$Value) {
     return @($Value.Split(';') | Where-Object { $_.Trim() -ne '' } | ForEach-Object { $_.Trim().Trim('"').TrimEnd('\') })
 }
 function Invoke-Checked([string]$Executable, [string[]]$Arguments) {
-    $output = & $Executable @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "Command failed ($LASTEXITCODE): $Executable $output" }
-    return $output
+    # A direct PowerShell invocation can return before a windowed executable exits.
+    # Wait on the owned process and capture both streams before inspecting its report.
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $Executable
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in $Arguments) { $startInfo.ArgumentList.Add($argument) }
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { throw "Could not start: $Executable" }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(90000)) {
+            $process.Kill($true)
+            $process.WaitForExit()
+            throw "Command timed out: $Executable"
+        }
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        if ($process.ExitCode -ne 0) { throw "Command failed ($($process.ExitCode)): $Executable $stdout $stderr" }
+        return $stdout.TrimEnd()
+    } finally { $process.Dispose() }
 }
 function Uninstall-TestApp {
     $uninstaller = Join-Path $appDirectory 'unins000.exe'
