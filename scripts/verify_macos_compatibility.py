@@ -69,7 +69,7 @@ def audit_bundle(bundle: Path) -> dict:
             if source.read(4) not in MACH_O_MAGIC:
                 continue
         checked += 1
-        relative = str(path.relative_to(bundle))
+        relative = path.relative_to(bundle).as_posix()
         process = subprocess.run(
             ["/usr/bin/otool", "-arch", "arm64", "-l", str(path)],
             capture_output=True,
