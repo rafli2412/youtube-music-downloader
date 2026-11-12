@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import errno
 import json
+import logging
 import multiprocessing
 import os
 import re
@@ -122,11 +123,19 @@ def publish_mp3(source: Path, directory: Path, stem: str) -> Path:
 def _download_worker(connection: Any, url: str, directory: str, deno: str) -> None:
     """No GUI imports or inherited yt-dlp state in this child process."""
     try:
+        # The CLI parent owns cancellation, including Windows console Ctrl+C.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         if os.name != "nt":
             os.setsid()
         os.environ["YTDLP_NO_PLUGINS"] = "1"
         os.environ["DENO_NO_UPDATE_CHECK"] = "1"
         import yt_dlp
+
+        # Only the parent reports failures. Direct child logs could duplicate errors
+        # or bypass the terminal interface's control-character sanitization.
+        logger = logging.getLogger("ytmp3.retrieval")
+        logger.addHandler(logging.NullHandler())
+        logger.propagate = False
 
         last_progress = 0.0
 
@@ -156,6 +165,7 @@ def _download_worker(connection: Any, url: str, directory: str, deno: str) -> No
             "quiet": True,
             "no_warnings": True,
             "noprogress": True,
+            "logger": logger,
             "overwrites": False,
             "restrictfilenames": True,
             "windowsfilenames": True,

@@ -20,7 +20,10 @@ binaries = [(str(tools / f"{name}{suffix}"), "runtime-tools") for name in ("ffmp
 native_backend = "webview.platforms.cocoa" if platform.system() == "Darwin" else "webview.platforms.edgechromium"
 
 a = Analysis(
-    [str(root / "packaging" / "desktop_entry.py")],
+    [
+        str(root / "packaging" / "desktop_entry.py"),
+        str(root / "packaging" / "cli_entry.py"),
+    ],
     pathex=[str(root / "src")],
     binaries=binaries,
     datas=datas,
@@ -34,7 +37,7 @@ a = Analysis(
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
-    a.scripts,
+    [entry for entry in a.scripts if entry[0] != "cli_entry"],
     [],
     exclude_binaries=True,
     name="ytmp3-desktop",
@@ -47,8 +50,25 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+cli_exe = EXE(
+    pyz,
+    [entry for entry in a.scripts if entry[0] != "desktop_entry"],
+    [],
+    exclude_binaries=True,
+    name="ytmp3",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    target_arch="arm64" if platform.system() == "Darwin" else None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
 collection = COLLECT(
-    exe, a.binaries, a.datas, strip=False, upx=False, name="YouTube Music Downloader",
+    # Both launchers share one copy of Python, assets, and conversion tools. Keep
+    # the GUI last so COLLECT/BUNDLE inherits its windowed application settings.
+    cli_exe, exe, a.binaries, a.datas, strip=False, upx=False, name="YouTube Music Downloader",
 )
 if platform.system() == "Darwin":
     app = BUNDLE(
@@ -58,6 +78,10 @@ if platform.system() == "Darwin":
         version="0.1.0",
         info_plist={
             "CFBundleDisplayName": "YouTube Music Downloader",
+            # COLLECT sorts executable names; explicitly retain the GUI as the
+            # Finder/Dock entry point while ytmp3 remains callable from a terminal.
+            "CFBundleExecutable": "ytmp3-desktop",
+            "LSBackgroundOnly": False,
             "NSHighResolutionCapable": True,
             "LSMinimumSystemVersion": "13.0",
         },

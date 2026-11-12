@@ -116,6 +116,12 @@ jobs:
         id: bundle
         run: python scripts/build_desktop.py
 
+      - name: Verify packaged terminal launcher
+        id: terminal
+        run: |
+          mkdir -p build/reports
+          python scripts/verify_bundle.py --cli --report build/reports/bundle-cli.json 2>&1 | tee build/reports/cli-smoke.txt
+
       - name: Verify packaged executable without a window
         id: headless
         run: |
@@ -141,6 +147,7 @@ jobs:
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
           TOOLS_OUTCOME: ${{ steps.tools.outcome }}
           BUNDLE_OUTCOME: ${{ steps.bundle.outcome }}
+          TERMINAL_OUTCOME: ${{ steps.terminal.outcome }}
           HEADLESS_OUTCOME: ${{ steps.headless.outcome }}
           GUI_OUTCOME: ${{ steps.gui.outcome }}
         run: |
@@ -150,7 +157,7 @@ jobs:
           from pathlib import Path
           import platform
 
-          phases = ["lint", "formatting", "frontend_tests", "frontend", "tests", "tools", "bundle", "headless", "gui"]
+          phases = ["lint", "formatting", "frontend_tests", "frontend", "tests", "tools", "bundle", "terminal", "headless", "gui"]
           outcomes = {name: os.environ.get(f"{name.upper()}_OUTCOME", "unknown") for name in phases}
           report = {
               "target": os.environ["PACKAGE_TARGET"],

@@ -47,12 +47,22 @@ def main() -> int:
     else:
         bundle = distribution / "YouTube Music Downloader"
         archive = Path(shutil.make_archive(str(basename), "zip", distribution, bundle.name))
+    if platform.system() == "Darwin":
+        cli = bundle / "Contents" / "MacOS" / "ytmp3"
+        desktop = bundle / "Contents" / "MacOS" / "ytmp3-desktop"
+    else:
+        cli = bundle / "ytmp3.exe"
+        desktop = bundle / "ytmp3-desktop.exe"
+    if not cli.is_file() or not desktop.is_file():
+        raise SystemExit("The distribution must contain both terminal and desktop launchers.")
     report = {
         "target": target,
         "python": platform.python_version(),
         "pyinstaller": importlib.metadata.version("pyinstaller"),
         "bundle": str(bundle.relative_to(ROOT)),
         "archive": str(archive.relative_to(ROOT)),
+        "cli": str(cli.relative_to(ROOT)),
+        "desktop": str(desktop.relative_to(ROOT)),
         "archive_bytes": archive.stat().st_size,
         "bundle_bytes": sum(
             path.stat().st_size

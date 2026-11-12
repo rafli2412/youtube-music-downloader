@@ -2,15 +2,16 @@
 
 A terminal-first, personal-use YouTube / YouTube Music to MP3 app with a React desktop companion.
 
-## Current status — phase 2 of 6
+## Current status — phase 3 of 6
 
 The shared Python engine now downloads one public YouTube / YouTube Music video and converts its audio
 to a verified 192 kbps MP3. It supports progress callbacks, cancellation, saved folder settings, and
 safe filenames without replacing existing files. Retrieval runs in an isolated spawned process.
 
 The React window remains a **desktop foundation preview**: conversion controls are wired in phase 4.
-The CLI still offers `gui`, `doctor`, and `--version`; user-facing download/config commands arrive in
-phase 3. The developer check below can exercise the engine now.
+The terminal interface now supports direct URL downloads, interactive prompting, saved default folders,
+per-download folder overrides, progress, readable errors, and Ctrl+C cancellation. Native packages
+include both a console launcher and the desktop launcher, sharing the same runtime dependencies.
 
 Targets: **Windows x64** and **macOS Apple Silicon (arm64)**. Local Apple Silicon packaging is checked
 with the scripts below; Windows packaging is prepared in GitHub Actions and must pass there before
@@ -20,8 +21,11 @@ tested on its intended minimum OS version.
 Local proof on 2026-11-12 (Apple Silicon, Python 3.11.18): engine integration tests use real spawned
 workers and FFmpeg/ffprobe with synthetic audio. A separate live check downloaded and converted the
 public "Me at the zoo" video. The old yt-dlp test clip was unavailable and failed cleanly.
-The initial archive is approximately 115.6 MB compressed (110.3 MiB); dependency size optimization
-is still pending. This is not yet a clean-machine installation test.
+Phase 3 verification adds terminal behavior tests, a real OS-level Ctrl+C test, and a live download
+through the packaged console executable with development PATH entries removed. Both console and
+desktop launchers pass the native Apple Silicon smoke checks. The current archive is approximately
+128 MB compressed; dependency size optimization is still pending. These checks do not replace a
+clean-machine installation test.
 
 ## Development setup
 
@@ -56,6 +60,59 @@ For React hot reload, run `npm run dev --prefix frontend` in one terminal, then
 `ytmp3 gui --dev-url http://127.0.0.1:5173` from the activated Python environment in another.
 Development URLs are restricted to loopback HTTP and disabled in packaged builds.
 
+## Use the terminal app
+
+From an activated development environment, or with the packaged `ytmp3` on your PATH:
+
+```sh
+# Download one video or song to the default folder.
+ytmp3 "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+ytmp3 download "https://music.youtube.com/watch?v=VIDEO_ID"
+
+# Save your default once; it also applies to the future GUI download workflow.
+ytmp3 config set download-dir "~/Music/YouTube"
+ytmp3 config show
+
+# Override the folder for this download without changing the saved default.
+ytmp3 "https://youtu.be/jNQXAC9IVRw" --directory "./my downloads"
+
+# Launch without arguments in a terminal to be prompted for one link.
+ytmp3
+ytmp3 gui
+ytmp3 doctor
+```
+
+Replace `VIDEO_ID` with the real video ID from a browser link. Quote links so shell characters such as
+`&` are passed intact. Only one item is downloaded, including when a video link contains playlist
+parameters. With redirected/non-interactive input, a URL is required and the app never waits for a
+prompt. EOF at the interactive prompt exits without starting a job.
+
+Progress is written to stderr; the final `Saved: <path>` line is written to stdout. Interactive terminals
+show download percentage/bytes when available and an indeterminate conversion stage. Redirected logs
+get one line per stage without control sequences. Press Ctrl+C to cancel and clean up temporary files.
+Exit codes: `0` success (or prompt EOF), `1` download/settings/runtime failure, `2` usage or invalid link,
+`130` cancellation. An output already published before cancellation remains a successful download.
+
+Packaged apps include Python and the tools, so they can be used from a terminal without installing
+Python or Node. After extracting the archive, run the console launcher directly:
+
+macOS:
+
+```sh
+"./YouTube Music Downloader.app/Contents/MacOS/ytmp3" --help
+"./YouTube Music Downloader.app/Contents/MacOS/ytmp3" "https://youtu.be/jNQXAC9IVRw"
+```
+
+Windows PowerShell:
+
+```powershell
+& ".\YouTube Music Downloader\ytmp3.exe" --help
+& ".\YouTube Music Downloader\ytmp3.exe" "https://youtu.be/jNQXAC9IVRw"
+```
+
+Keep the complete app/folder together; the launchers share its bundled resources. PATH integration
+and installers belong to phase 5. Terminal downloads do not open a GUI window or initialize pywebview.
+
 ## Exercise the shared engine
 
 From an activated environment with runtime tools fetched:
@@ -69,8 +126,8 @@ python scripts/check_engine.py --url "https://www.youtube.com/watch?v=jNQXAC9IVR
 ```
 
 The live check uses network access and saves a real MP3. Automated tests and the packaged `doctor`
-probe use synthetic audio and do not contact YouTube. The script is a development tool; the regular
-terminal download workflow is implemented in phase 3.
+probe use synthetic audio and do not contact YouTube. The script remains available for developer
+integration checks; normal use goes through the terminal commands above.
 
 The core API is `DownloadEngine(settings).download(url, directory=None, on_progress=None, cancel=None)`.
 `cancel` is a `threading.Event`; callbacks receive a `DownloadProgress` with a stage and optional byte
@@ -79,7 +136,7 @@ in the GUI. Only one job may run per engine instance. `DownloadResult` contains 
 and video ID. Failures are raised as exceptions; user cancellation raises `DownloadCancelled`.
 Callers should catch `DownloadError`, `SettingsError`, and `InvalidYouTubeURL` for actionable failures.
 
-Use `SettingsStore().set_download_directory(path)` to save a default, shared by future CLI and GUI
+Use `SettingsStore().set_download_directory(path)` to save a default, shared by CLI and future GUI
 commands. Settings are written atomically to:
 
 - macOS: `~/Library/Application Support/YouTube Music Downloader/settings.json`.
@@ -108,6 +165,7 @@ From an activated virtual environment:
 python scripts/fetch_tools.py
 npm run build --prefix frontend
 python scripts/build_desktop.py
+python scripts/verify_bundle.py --cli --report build/reports/bundle-cli.json
 python scripts/verify_bundle.py --headless --report build/reports/bundle-headless.json
 python scripts/verify_bundle.py --gui --report build/reports/bundle-gui.json
 ```
@@ -118,8 +176,9 @@ enabled. Tool downloads happen at build time, never when a user starts the packa
 
 Output:
 
-- macOS: `dist/YouTube Music Downloader.app` and `dist/youtube-music-downloader-macos-arm64.tar.gz`.
-- Windows: `dist/YouTube Music Downloader/ytmp3-desktop.exe` and
+- macOS: `dist/YouTube Music Downloader.app` (console launcher at `Contents/MacOS/ytmp3`) and
+  `dist/youtube-music-downloader-macos-arm64.tar.gz`.
+- Windows: `dist/YouTube Music Downloader/ytmp3.exe`, `ytmp3-desktop.exe` in the same directory, and
   `dist/youtube-music-downloader-windows-x64.zip`. Keep the entire extracted directory together.
 - Evidence: `build/reports/`, including package size and smoke-test results.
 
@@ -130,12 +189,14 @@ private local static-file server. React calls the Python bridge directly.
 The headless check launches the packaged executable from a temporary working directory with Python
 environment variables and development PATH entries removed. It verifies resources and package
 imports, executes all runtime tools, and runs the shared engine through a spawned synthetic-audio
-worker and real MP3 conversion/publication offline. The GUI check additionally
+worker and real MP3 conversion/publication offline. The CLI check verifies the console launcher's
+version/help output and runs `doctor` through that launcher, including frozen worker startup.
+The GUI check additionally
 waits for the actual React-to-Python round trip in a native window. These checks on a development
 machine do **not** replace final testing on a clean computer without Python installed.
 
-macOS builds are ad-hoc signed by the bundler, not Developer ID signed or notarized. Phase 1 does not
-provide a public release installer, automatic updates, or a packaged terminal launcher.
+macOS builds are ad-hoc signed by the bundler, not Developer ID signed or notarized. This phase does
+not provide a public release installer or automatic updates.
 
 ### Pinned runtime tools
 
@@ -161,7 +222,8 @@ npm test --prefix frontend
 npm run build --prefix frontend
 ```
 
-The packaging workflow runs native Windows x64 and macOS arm64 builds. The required headless check
+The packaging workflow runs native Windows x64 and macOS arm64 builds and verifies both launchers.
+The required headless check
 does not claim that a window rendered. Use the workflow's `run_gui_smoke` manual input on a runner
 with an interactive desktop to request the native-window check. Download the generated archives
 rather than uploading the application directory directly, so executable permissions and symlinks survive.
@@ -180,12 +242,12 @@ tests/               Python foundation and acquisition checks
 ## Development steps
 
 1. Set up the project and prove desktop packaging — implemented; Windows proof remains pending CI.
-2. Build the shared Python download engine — current.
-3. Finish the terminal interface first.
+2. Build the shared Python download engine — implemented.
+3. Finish the terminal interface first — current.
 4. Build the React desktop interface.
 5. Produce installable packages.
 6. Verify the complete experience.
 
 The finished MVP accepts one public YouTube or YouTube Music link at a time, creates an MP3, and
-shares a persistent default download folder between CLI and GUI. The planned engine will use safe
+shares a persistent default download folder between CLI and GUI. The engine uses safe
 filenames, preserve existing files, and clean up after cancellation or failure.
