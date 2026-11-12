@@ -102,15 +102,15 @@ jobs:
         id: frontend
         run: npm run build --prefix frontend
 
+      - name: Fetch pinned runtime tools
+        id: tools
+        run: python scripts/fetch_tools.py --platform auto --arch auto
+
       - name: Run Python tests
         id: tests
         run: |
           mkdir -p build/reports
           python -m unittest discover -s tests -v 2>&1 | tee build/reports/tests.txt
-
-      - name: Fetch pinned runtime tools
-        id: tools
-        run: python scripts/fetch_tools.py --platform auto --arch auto
 
       - name: Build desktop bundle and distributable archive
         id: bundle

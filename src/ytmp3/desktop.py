@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import multiprocessing
 import threading
 import time
 from pathlib import Path
@@ -123,6 +124,7 @@ def launch_desktop(
 
 
 def main(argv: list[str] | None = None) -> int:
+    multiprocessing.freeze_support()
     parser = argparse.ArgumentParser(description=APP_NAME)
     parser.add_argument("--dev-url")
     parser.add_argument("--self-check", action="store_true", help="Run offline package checks")

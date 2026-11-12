@@ -122,5 +122,12 @@ def collect_diagnostics() -> dict[str, Any]:
     except Exception as error:
         checks["mp3_conversion"] = {"ok": False, "error": str(error)}
 
+    try:
+        from ytmp3.engine_check import check_engine
+
+        checks["download_engine"] = check_engine()
+    except Exception as error:
+        checks["download_engine"] = {"ok": False, "error": str(error)}
+
     report["ok"] = all(check["ok"] for check in checks.values())
     return report

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing
 from pathlib import Path
 
 from ytmp3 import __version__
 
 
 def main(argv: list[str] | None = None) -> int:
+    multiprocessing.freeze_support()
     parser = argparse.ArgumentParser(
         prog="ytmp3", description="YouTube Music Downloader — desktop foundation preview."
     )

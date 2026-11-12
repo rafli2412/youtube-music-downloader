@@ -2,20 +2,24 @@
 
 A terminal-first, personal-use YouTube / YouTube Music to MP3 app with a React desktop companion.
 
-## Current status — phase 1 of 6
+## Current status — phase 2 of 6
 
-This is a **desktop foundation preview**, not a working downloader yet. The React window connects to
-Python through pywebview. Conversion is deliberately disabled in the interface until the shared engine
-is implemented in phase 2. The CLI currently offers `gui`, `doctor`, and `--version`.
+The shared Python engine now downloads one public YouTube / YouTube Music video and converts its audio
+to a verified 192 kbps MP3. It supports progress callbacks, cancellation, saved folder settings, and
+safe filenames without replacing existing files. Retrieval runs in an isolated spawned process.
+
+The React window remains a **desktop foundation preview**: conversion controls are wired in phase 4.
+The CLI still offers `gui`, `doctor`, and `--version`; user-facing download/config commands arrive in
+phase 3. The developer check below can exercise the engine now.
 
 Targets: **Windows x64** and **macOS Apple Silicon (arm64)**. Local Apple Silicon packaging is checked
 with the scripts below; Windows packaging is prepared in GitHub Actions and must pass there before
 being considered verified. Initial macOS target is macOS 13 or newer; a packaged build must also be
 tested on its intended minimum OS version.
 
-Local proof on 2026-11-12 (Apple Silicon, Python 3.11.18): 11 Python tests and 6 frontend tests passed;
-production React build, typecheck, lint, and formatting passed. The packaged `.app` passed both the
-offline dependency/MP3/JavaScript checks and the native React bridge check, then exited normally.
+Local proof on 2026-11-12 (Apple Silicon, Python 3.11.18): engine integration tests use real spawned
+workers and FFmpeg/ffprobe with synthetic audio. A separate live check downloaded and converted the
+public "Me at the zoo" video. The old yt-dlp test clip was unavailable and failed cleanly.
 The initial archive is approximately 115.6 MB compressed (110.3 MiB); dependency size optimization
 is still pending. This is not yet a clean-machine installation test.
 
@@ -52,6 +56,49 @@ For React hot reload, run `npm run dev --prefix frontend` in one terminal, then
 `ytmp3 gui --dev-url http://127.0.0.1:5173` from the activated Python environment in another.
 Development URLs are restricted to loopback HTTP and disabled in packaged builds.
 
+## Exercise the shared engine
+
+From an activated environment with runtime tools fetched:
+
+```sh
+# Offline integration: spawned retrieval fixture, real conversion, validation, and publication.
+python scripts/check_engine.py
+
+# Live integration: a single public link, with an explicit destination.
+python scripts/check_engine.py --url "https://www.youtube.com/watch?v=jNQXAC9IVRw" --directory build/live-engine-proof
+```
+
+The live check uses network access and saves a real MP3. Automated tests and the packaged `doctor`
+probe use synthetic audio and do not contact YouTube. The script is a development tool; the regular
+terminal download workflow is implemented in phase 3.
+
+The core API is `DownloadEngine(settings).download(url, directory=None, on_progress=None, cancel=None)`.
+`cancel` is a `threading.Event`; callbacks receive a `DownloadProgress` with a stage and optional byte
+progress. Conversion progress is indeterminate. The blocking call should run on a background thread
+in the GUI. Only one job may run per engine instance. `DownloadResult` contains the final path, title,
+and video ID. Failures are raised as exceptions; user cancellation raises `DownloadCancelled`.
+Callers should catch `DownloadError`, `SettingsError`, and `InvalidYouTubeURL` for actionable failures.
+
+Use `SettingsStore().set_download_directory(path)` to save a default, shared by future CLI and GUI
+commands. Settings are written atomically to:
+
+- macOS: `~/Library/Application Support/YouTube Music Downloader/settings.json`.
+- Windows: `%APPDATA%/YouTube Music Downloader/settings.json`.
+
+Without saved settings, the default is `~/Downloads`. A per-job directory override does not change
+the saved default. Invalid settings and unwritable destinations produce readable errors.
+
+Supported links include normal watch links, YouTube Music links, `youtu.be`, Shorts, embed links, and
+finished live-video links. Playlist/tracking parameters on a video are removed; playlist-only links,
+active/upcoming streams, and account-restricted content are rejected. YouTube may still deny a public
+video because it is unavailable in a region or because it requires verification.
+
+Files are named `Title [video-id].mp3`, with numbered suffixes for collisions. Temporary downloads and
+conversion outputs are cleaned after success, failure, or cancellation. Completed output is published
+without overwriting another file; once published, a late cancellation does not delete it. On macOS,
+safe atomic publication requires a filesystem supporting hard links (such as APFS); unsupported
+destinations get an error requesting a local folder. Existing files are always preserved.
+
 ## Package a native desktop app
 
 Build on the target OS and architecture. Windows cannot be packaged from macOS.
@@ -82,7 +129,8 @@ private local static-file server. React calls the Python bridge directly.
 
 The headless check launches the packaged executable from a temporary working directory with Python
 environment variables and development PATH entries removed. It verifies resources and package
-imports, executes all runtime tools, and creates/probes a short MP3 offline. The GUI check additionally
+imports, executes all runtime tools, and runs the shared engine through a spawned synthetic-audio
+worker and real MP3 conversion/publication offline. The GUI check additionally
 waits for the actual React-to-Python round trip in a native window. These checks on a development
 machine do **not** replace final testing on a clean computer without Python installed.
 
@@ -105,6 +153,7 @@ and license files. Generated binaries and dependency caches are ignored by Git.
 ## Checks
 
 ```sh
+python scripts/fetch_tools.py
 python -m unittest discover -s tests -v
 python -m ruff check .
 python -m ruff format --check .
@@ -130,8 +179,8 @@ tests/               Python foundation and acquisition checks
 
 ## Development steps
 
-1. Set up the project and prove desktop packaging — current.
-2. Build the shared Python download engine.
+1. Set up the project and prove desktop packaging — implemented; Windows proof remains pending CI.
+2. Build the shared Python download engine — current.
 3. Finish the terminal interface first.
 4. Build the React desktop interface.
 5. Produce installable packages.
