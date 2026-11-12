@@ -1,0 +1,20 @@
+YouTube Music Downloader — Windows x64
+
+Installs for your current user without requesting administrator access.
+Requires Windows 10 build 19041 or newer (including Windows 11), x64, and
+Microsoft .NET Framework 4.8 or newer. Setup checks .NET before installing files.
+
+If Microsoft WebView2 is missing, Setup runs its bundled official bootstrapper.
+Internet access is needed in that case. A failed prerequisite check stops Setup
+before copying app files and explains how to retry. WebView2 remains installed
+if you later remove this app, because other applications may use it.
+
+The optional terminal task adds the app folder to your user PATH. Open a new
+terminal after installation and run: ytmp3 --help
+
+Uninstall through Windows Settings > Apps. Only the app-owned PATH entry is
+removed. Settings, downloaded MP3s, and shared system runtimes are preserved.
+
+Python, Node, FFmpeg, and Deno do not need separate installation.
+This personal-use app installer is not code-signed. Windows may show an unknown
+publisher warning. Public distribution requires an appropriately signed build.

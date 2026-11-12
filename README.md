@@ -2,7 +2,7 @@
 
 A terminal-first, personal-use YouTube / YouTube Music to MP3 app with a React desktop companion.
 
-## Current status — phase 4 of 6
+## Current status — phase 5 of 6
 
 The shared Python engine now downloads one public YouTube / YouTube Music video and converts its audio
 to a verified 192 kbps MP3. It supports progress callbacks, cancellation, saved folder settings, and
@@ -59,9 +59,9 @@ npm run build --prefix frontend
 .venv\Scripts\ytmp3 gui
 ```
 
-The Windows desktop UI requires Microsoft's WebView2 runtime and .NET Framework 4.6.2 or newer.
-Modern Windows generally provides these; this phase produces a portable application folder, not an
-installer that provisions prerequisites. WebView2 installation handling belongs to phase 5.
+The Windows installer targets x64 Windows 10 build 19041 or newer (including Windows 11), checks for
+.NET Framework 4.8, and installs Microsoft WebView2 if missing. The WebView2 bootstrapper needs
+internet access in that case. Portable ZIP users must provide those system prerequisites themselves.
 
 For React hot reload, run `npm run dev --prefix frontend` in one terminal, then
 `ytmp3 gui --dev-url http://127.0.0.1:5173` from the activated Python environment in another.
@@ -143,8 +143,45 @@ Windows PowerShell:
 & ".\YouTube Music Downloader\ytmp3.exe" "https://youtu.be/jNQXAC9IVRw"
 ```
 
-Keep the complete app/folder together; the launchers share its bundled resources. PATH integration
-and installers belong to phase 5. Terminal downloads do not open a GUI window or initialize pywebview.
+Keep the complete app/folder together; the launchers share its bundled resources. The Windows
+installer offers user PATH integration; the Mac disk image includes an optional terminal helper.
+Terminal downloads do not open a GUI window or initialize pywebview.
+
+## Install the app
+
+### Apple Silicon macOS
+
+Open `youtube-music-downloader-0.1.0-macos-arm64.dmg`, drag the app to Applications, eject the image,
+and launch the installed copy. Your user's Applications folder works too. No Python, Node, FFmpeg,
+or Deno installation is needed. The image includes an Applications link and short install notes.
+
+For the terminal interface, run **Install terminal command.command** from the image after copying
+the app. It creates `~/.local/bin/ytmp3`; if that directory is not already on your PATH, the helper
+prints the shell setup line. It does not edit shell profiles automatically or replace an unrelated
+command. **Remove terminal command.command** removes only the matching link, even if the app has
+already been deleted. Remove the GUI by quitting it and moving the app to Trash. Settings and MP3s
+are preserved. The console executable inside the app can also be called directly without a helper.
+
+This personal-use build is ad-hoc signed, not Developer ID signed or notarized. Downloaded copies
+may be blocked by macOS. A public release requires appropriate signing/notarization; these scripts
+do not bypass or change Gatekeeper settings. No signing identity is available on the build machine.
+
+### Windows x64
+
+Run `youtube-music-downloader-0.1.0-windows-x64-setup.exe` produced by the Windows build. It installs
+for the current user under `%LOCALAPPDATA%/Programs/YouTube Music Downloader`, creates a Start menu
+shortcut, offers a desktop shortcut, and offers to add the app folder to the user PATH. Open a new
+terminal after installation to use `ytmp3` by name. The installer does not request administrator access.
+
+Before copying app files, setup checks .NET Framework 4.8 and detects WebView2 in both user and machine
+registry locations. If WebView2 is absent, it runs the bundled Microsoft bootstrapper and checks the
+result. Network/policy failures stop installation with retry instructions; a required restart is
+reported without forcing one. WebView2 is shared with other apps and remains after app removal.
+
+Uninstall through Windows Settings > Apps. The uninstaller removes only the app-owned PATH entry,
+preserving pre-existing entries and entries added later. Downloaded files and app settings remain.
+This personal-use installer is unsigned; public distribution needs an appropriately signed build.
+Windows installer compilation/execution must be verified on Windows; it has not been run on this Mac.
 
 ## Exercise the shared engine
 
@@ -201,6 +238,7 @@ python scripts/build_desktop.py
 python scripts/verify_bundle.py --cli --report build/reports/bundle-cli.json
 python scripts/verify_bundle.py --headless --report build/reports/bundle-headless.json
 python scripts/verify_bundle.py --gui --report build/reports/bundle-gui.json
+python scripts/build_installers.py
 ```
 
 If the development Python installation lacks CA roots, specify a trusted PEM bundle with
@@ -214,6 +252,8 @@ Output:
 - Windows: `dist/YouTube Music Downloader/ytmp3.exe`, `ytmp3-desktop.exe` in the same directory, and
   `dist/youtube-music-downloader-windows-x64.zip`. Keep the entire extracted directory together.
 - Evidence: `build/reports/`, including package size and smoke-test results.
+- Installers: a versioned `.dmg` on macOS or `*-windows-x64-setup.exe` on Windows, plus a target-specific
+  `*.SHA256SUMS` file covering the installer and portable archive.
 
 The archive contains Python, the React assets, yt-dlp and its EJS scripts, FFmpeg/ffprobe, and Deno.
 The GUI is a native window using the system webview; its bundled assets are served by pywebview's
@@ -228,8 +268,31 @@ The GUI check additionally
 waits for the actual React-to-Python round trip in a native window. These checks on a development
 machine do **not** replace final testing on a clean computer without Python installed.
 
-macOS builds are ad-hoc signed by the bundler, not Developer ID signed or notarized. This phase does
-not provide a public release installer or automatic updates.
+On Windows, `build_installers.py` uses Inno Setup 7 or 6.3+ (the GitHub runner includes Inno Setup).
+It locates `ISCC.exe` on PATH or in the standard Inno Setup folders; pass `--iscc <path>` to override.
+The bootstrapper is downloaded from Microsoft at build time using the committed SHA-256 pin in
+`packaging/prerequisites.json`, and its Microsoft Authenticode signature is checked before compilation.
+Microsoft can update the download URL's bytes: a checksum mismatch intentionally stops the build and
+requires review/repinning. App launch never downloads build dependencies.
+
+Verify the installable artifact on its target OS:
+
+```sh
+# Mac: mount read-only, copy into an isolated directory, check both launchers and helpers.
+python scripts/verify_macos_install.py
+```
+
+```powershell
+# Windows: disposable user/CI account, guarded against replacing an existing app install.
+./scripts/verify_windows_install.ps1 -Installer ./dist/youtube-music-downloader-0.1.0-windows-x64-setup.exe
+```
+
+The Mac check does not install into `/Applications`, modify shell profiles, or write normal app
+preferences. It validates the image, copied code-signature integrity, frozen engines, terminal-link
+setup/removal, and preservation of an unrelated command. The Windows check installs into a generated
+test folder, runs both offline launchers with development PATH entries removed, tests PATH ownership
+and uninstall preservation, then cleans up its test installation. It leaves shared WebView2 installed
+if setup needed it. Neither check establishes clean-machine or public-release signing readiness.
 
 ### Pinned runtime tools
 
@@ -277,8 +340,8 @@ tests/               Python foundation and acquisition checks
 1. Set up the project and prove desktop packaging — implemented; Windows proof remains pending CI.
 2. Build the shared Python download engine — implemented.
 3. Finish the terminal interface first — implemented.
-4. Build the React desktop interface — current.
-5. Produce installable packages.
+4. Build the React desktop interface — implemented.
+5. Produce installable packages — current; Mac image verified, Windows verification requires CI.
 6. Verify the complete experience.
 
 The finished MVP accepts one public YouTube or YouTube Music link at a time, creates an MP3, and

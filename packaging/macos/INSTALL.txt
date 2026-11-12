@@ -1,0 +1,30 @@
+YouTube Music Downloader — Apple Silicon
+
+1. Drag YouTube Music Downloader.app to Applications.
+2. Eject this disk image and launch the app from Applications.
+   You can also copy the app into your user's Applications folder.
+
+Python, Node, FFmpeg, and Deno do not need to be installed separately.
+
+Terminal use (optional)
+Run "Install terminal command.command" after copying the app. This creates a
+link in ~/.local/bin without changing shell profiles or replacing another
+ytmp3 command. The helper prints PATH setup instructions if needed.
+
+You may also run the console executable directly:
+"/Applications/YouTube Music Downloader.app/Contents/MacOS/ytmp3" --help
+
+To remove the terminal link, run "Remove terminal command.command".
+To uninstall the GUI, quit it and move the app from Applications to Trash.
+Settings and downloaded MP3 files are preserved.
+
+This personal-use build is ad-hoc signed, not Developer ID signed or notarized.
+Downloaded copies may be blocked by macOS. Public distribution requires a
+properly signed and notarized build; this package does not change security settings.
+
+Requires Apple Silicon and macOS 13 or newer. The effective minimum version also
+depends on the machine and Python distribution used to build the app; test on
+the intended minimum OS before releasing it.
+
+YouTube may reject public video requests or require verification. The app does
+not sign in or import cookies.

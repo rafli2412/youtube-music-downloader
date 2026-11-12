@@ -128,6 +128,24 @@ jobs:
           mkdir -p build/reports
           python scripts/verify_bundle.py --headless --report build/reports/bundle-headless.json 2>&1 | tee build/reports/headless-smoke.txt
 
+      - name: Build native installer and checksums
+        id: installer
+        run: python scripts/build_installers.py
+
+      - name: Verify macOS disk image and isolated installation
+        id: install_macos
+        if: runner.os == 'macOS'
+        run: python scripts/verify_macos_install.py --report build/reports/install-macos.json
+
+      - name: Verify Windows installation and uninstallation
+        id: install_windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist/*-windows-x64-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'The Windows installer is missing.' }
+          ./scripts/verify_windows_install.ps1 -Installer $installer.FullName -Report build/reports/install-windows.json
+
       # A headless check cannot establish whether the native window renders.
       # Opt in on a manual run when the runner has an interactive desktop session.
       - name: Verify native window and React bridge
@@ -148,6 +166,9 @@ jobs:
           TOOLS_OUTCOME: ${{ steps.tools.outcome }}
           BUNDLE_OUTCOME: ${{ steps.bundle.outcome }}
           TERMINAL_OUTCOME: ${{ steps.terminal.outcome }}
+          INSTALLER_OUTCOME: ${{ steps.installer.outcome }}
+          INSTALL_MACOS_OUTCOME: ${{ steps.install_macos.outcome }}
+          INSTALL_WINDOWS_OUTCOME: ${{ steps.install_windows.outcome }}
           HEADLESS_OUTCOME: ${{ steps.headless.outcome }}
           GUI_OUTCOME: ${{ steps.gui.outcome }}
         run: |
@@ -157,7 +178,7 @@ jobs:
           from pathlib import Path
           import platform
 
-          phases = ["lint", "formatting", "frontend_tests", "frontend", "tests", "tools", "bundle", "terminal", "headless", "gui"]
+          phases = ["lint", "formatting", "frontend_tests", "frontend", "tests", "tools", "bundle", "terminal", "headless", "installer", "install_macos", "install_windows", "gui"]
           outcomes = {name: os.environ.get(f"{name.upper()}_OUTCOME", "unknown") for name in phases}
           report = {
               "target": os.environ["PACKAGE_TARGET"],
@@ -191,6 +212,9 @@ jobs:
           path: |
             dist/*.zip
             dist/*.tar.gz
+            dist/*.dmg
+            dist/*-setup.exe
+            dist/*.SHA256SUMS
           if-no-files-found: warn
           compression-level: 0
           retention-days: 14
