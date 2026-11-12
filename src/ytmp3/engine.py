@@ -422,6 +422,7 @@ class DownloadEngine:
     def _execute_tool(
         self, name: str, arguments: list[str], directory: Path, cancel: threading.Event
     ) -> str:
+        self._check_cancel(cancel)
         options: dict[str, Any] = {}
         if os.name == "nt":
             options["creationflags"] = subprocess.CREATE_NO_WINDOW
