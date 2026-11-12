@@ -1,0 +1,201 @@
+name: Packaging proof
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_gui_smoke:
+        description: Also open the native window and check the React/Python bridge
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packaging-proof-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Package ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            runner: windows-latest
+            architecture: x64
+          # macos-15 is Apple's arm64 runner; macos-14 has retired.
+          - target: macos-arm64
+            runner: macos-15
+            architecture: arm64
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUNBUFFERED: "1"
+      EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+      PACKAGE_TARGET: ${{ matrix.target }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          architecture: ${{ matrix.architecture }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Check build architecture
+        run: |
+          python - <<'PY'
+          import os
+          import platform
+          import sys
+
+          expected = os.environ["EXPECTED_ARCHITECTURE"]
+          actual = platform.machine().lower()
+          accepted = {"x64": {"amd64", "x86_64"}, "arm64": {"arm64", "aarch64"}}
+          print(f"Python {sys.version}; machine={actual}; expected={expected}")
+          if actual not in accepted[expected]:
+              raise SystemExit("The Python interpreter does not match the target architecture")
+          PY
+
+      - name: Install Python dependencies
+        run: python -m pip install -e '.[dev,desktop,build]'
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Check Python lint
+        id: lint
+        run: python -m ruff check .
+
+      - name: Check Python formatting
+        id: formatting
+        run: python -m ruff format --check .
+
+      - name: Run frontend tests
+        id: frontend_tests
+        run: |
+          mkdir -p build/reports
+          npm test --prefix frontend 2>&1 | tee build/reports/frontend-tests.txt
+
+      - name: Build React assets
+        id: frontend
+        run: npm run build --prefix frontend
+
+      - name: Run Python tests
+        id: tests
+        run: |
+          mkdir -p build/reports
+          python -m unittest discover -s tests -v 2>&1 | tee build/reports/tests.txt
+
+      - name: Fetch pinned runtime tools
+        id: tools
+        run: python scripts/fetch_tools.py --platform auto --arch auto
+
+      - name: Build desktop bundle and distributable archive
+        id: bundle
+        run: python scripts/build_desktop.py
+
+      - name: Verify packaged executable without a window
+        id: headless
+        run: |
+          mkdir -p build/reports
+          python scripts/verify_bundle.py --headless --report build/reports/bundle-headless.json 2>&1 | tee build/reports/headless-smoke.txt
+
+      # A headless check cannot establish whether the native window renders.
+      # Opt in on a manual run when the runner has an interactive desktop session.
+      - name: Verify native window and React bridge
+        id: gui
+        if: ${{ inputs.run_gui_smoke && success() }}
+        run: |
+          mkdir -p build/reports
+          python scripts/verify_bundle.py --gui --report build/reports/bundle-gui.json 2>&1 | tee build/reports/gui-smoke.txt
+
+      - name: Record packaging results
+        if: ${{ always() }}
+        env:
+          LINT_OUTCOME: ${{ steps.lint.outcome }}
+          FORMATTING_OUTCOME: ${{ steps.formatting.outcome }}
+          FRONTEND_TESTS_OUTCOME: ${{ steps.frontend_tests.outcome }}
+          FRONTEND_OUTCOME: ${{ steps.frontend.outcome }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          TOOLS_OUTCOME: ${{ steps.tools.outcome }}
+          BUNDLE_OUTCOME: ${{ steps.bundle.outcome }}
+          HEADLESS_OUTCOME: ${{ steps.headless.outcome }}
+          GUI_OUTCOME: ${{ steps.gui.outcome }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import platform
+
+          phases = ["lint", "formatting", "frontend_tests", "frontend", "tests", "tools", "bundle", "headless", "gui"]
+          outcomes = {name: os.environ.get(f"{name.upper()}_OUTCOME", "unknown") for name in phases}
+          report = {
+              "target": os.environ["PACKAGE_TARGET"],
+              "python": platform.python_version(),
+              "architecture": platform.machine(),
+              "outcomes": outcomes,
+              "native_window_verified": outcomes["gui"] == "success",
+              "scope": "Packaging proof; headless checks do not verify native window rendering.",
+          }
+          report_dir = Path("build/reports")
+          report_dir.mkdir(parents=True, exist_ok=True)
+          (report_dir / "ci-summary.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+          if outcomes["headless"] != "success" and not (report_dir / "headless-smoke.txt").exists():
+              (report_dir / "headless-smoke.txt").write_text(
+                  f"Packaged executable smoke test: {outcomes['headless']}. See ci-summary.json and job logs.\n",
+                  encoding="utf-8",
+              )
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(f"### Packaging proof: {report['target']}\n\n")
+              summary.write("| Check | Outcome |\n| --- | --- |\n")
+              for name, outcome in outcomes.items():
+                  summary.write(f"| {name} | {outcome} |\n")
+              summary.write("\nHeadless verification does not check native window rendering.\n")
+          PY
+
+      - name: Upload generated packages
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packaging-proof-${{ matrix.target }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload smoke reports and build diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packaging-reports-${{ matrix.target }}
+          path: |
+            build/reports/**
+            build/**/warn-*.txt
+            build/**/xref-*.html
+          if-no-files-found: warn
+          retention-days: 14

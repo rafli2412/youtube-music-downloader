@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "ffmpeg": {
+      "version": "9.0.2 (macOS ARM64), 6.1.1 (Windows x64)",
+      "upstream": "https://ffmpeg.org/",
+      "builds": {
+        "macos-arm64": {
+          "version": "9.0.2",
+          "provider": "Martin Riedl",
+          "build_url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/",
+          "build_scripts": "https://git.martin-riedl.de/ffmpeg/build-script",
+          "source_url": "https://github.com/FFmpeg/FFmpeg/tree/n9.0.2",
+          "configuration_url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/versions.txt",
+          "license": "GPL-3.0-or-later",
+          "note": "Static native arm64 build with libmp3lame. Verified build configuration has --enable-gpl --enable-version3 and no --enable-nonfree."
+        },
+        "windows-x64": {
+          "version": "6.1.1",
+          "provider": "eugeneware/ffmpeg-static (gyan.dev build)",
+          "release_url": "https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1",
+          "source_url": "https://github.com/FFmpeg/FFmpeg/commit/e38092ef93",
+          "license": "GPL-3.0-or-later",
+          "note": "Fixed packaging baseline; build metadata is included in FFMPEG-README.txt. Review runtime versions before a public release."
+        }
+      }
+    },
+    "deno": {
+      "version": "2.9.8",
+      "repository": "https://github.com/denoland/deno",
+      "release_url": "https://github.com/denoland/deno/releases/tag/v2.9.8",
+      "license": "MIT"
+    }
+  },
+  "targets": {
+    "macos-arm64": {
+      "assets": [
+        {
+          "tool": "ffmpeg",
+          "version": "9.0.2",
+          "output": "ffmpeg",
+          "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffmpeg.zip",
+          "sha256": "c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924",
+          "format": "zip",
+          "output_sha256": "2e11c6f90993cdb79fff84d3f90044d28316b310e75b3e030cfc9a54f2c9d384",
+          "executable": true,
+          "member": "ffmpeg"
+        },
+        {
+          "tool": "ffprobe",
+          "version": "9.0.2",
+          "output": "ffprobe",
+          "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffprobe.zip",
+          "sha256": "fcbe839537485eaee7a7a8bc5cbc0f90d53617e80943e8a5b2e31cb851197ea6",
+          "format": "zip",
+          "output_sha256": "2738aa46a7f9acbc8ab09a6715554c90f7de603171ac403726765685df6a0059",
+          "executable": true,
+          "member": "ffprobe"
+        },
+        {
+          "tool": "deno",
+          "version": "2.9.8",
+          "output": "deno",
+          "url": "https://github.com/denoland/deno/releases/download/v2.9.8/deno-aarch64-apple-darwin.zip",
+          "sha256": "9f0bf660393da2eaff044cdc7444cb08c73f235849b61d224d825a194ce7c98e",
+          "format": "zip",
+          "member": "deno",
+          "output_sha256": "d1e99265e5e6ee096c5780d88ff7d3e6cfdf33b1953a118b4889cab8ca6980ba",
+          "executable": true
+        },
+        {
+          "output": "FFMPEG-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n9.0.2/COPYING.GPLv3",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+          "format": "raw",
+          "output_sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        },
+        {
+          "output": "FFMPEG-README.txt",
+          "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/versions.txt",
+          "sha256": "fc92572e752e09b20e7ff28d64fb7096f7bc1a0d589b2e40f17ac91b7fd0ca61",
+          "format": "raw",
+          "output_sha256": "fc92572e752e09b20e7ff28d64fb7096f7bc1a0d589b2e40f17ac91b7fd0ca61"
+        },
+        {
+          "output": "DENO-LICENSE.md",
+          "url": "https://raw.githubusercontent.com/denoland/deno/v2.9.8/LICENSE.md",
+          "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588",
+          "format": "raw",
+          "output_sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588"
+        }
+      ]
+    },
+    "windows-x64": {
+      "assets": [
+        {
+          "tool": "ffmpeg",
+          "version": "6.1.1",
+          "output": "ffmpeg.exe",
+          "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-win32-x64.gz",
+          "sha256": "8883a3dffbd0a16cf4ef95206ea05283f78908dbfb118f73c83f4951dcc06d77",
+          "format": "gzip",
+          "output_sha256": "04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00",
+          "executable": true
+        },
+        {
+          "tool": "ffprobe",
+          "version": "6.1.1",
+          "output": "ffprobe.exe",
+          "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffprobe-win32-x64.gz",
+          "sha256": "f309e6223ad89d2fe54bccd420a7709b66fd27540674e92309578ed491a43c8d",
+          "format": "gzip",
+          "output_sha256": "3a7e2dc003dc2cd1472827e4c7c4f056ae1ae0ae7c5bbc580c99b49827351ba4",
+          "executable": true
+        },
+        {
+          "tool": "deno",
+          "version": "2.9.8",
+          "output": "deno.exe",
+          "url": "https://github.com/denoland/deno/releases/download/v2.9.8/deno-x86_64-pc-windows-msvc.zip",
+          "sha256": "cba84b26e0df5ae7f74fc66b86a95b866872a86292ebd84fa1e959927edd93bf",
+          "format": "zip",
+          "member": "deno.exe",
+          "output_sha256": "924397800533d3eb0ed0c889b20ad70e18b970d93acd8135bc043f425e528266",
+          "executable": true
+        },
+        {
+          "output": "FFMPEG-LICENSE.txt",
+          "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/win32-x64.LICENSE",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+          "format": "raw",
+          "output_sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        },
+        {
+          "output": "FFMPEG-README.txt",
+          "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/win32-x64.README",
+          "sha256": "a636a7183c58006351acbaf35303c0ed85c6e1320fd4e80de453ba6157de6311",
+          "format": "raw",
+          "output_sha256": "a636a7183c58006351acbaf35303c0ed85c6e1320fd4e80de453ba6157de6311"
+        },
+        {
+          "output": "DENO-LICENSE.md",
+          "url": "https://raw.githubusercontent.com/denoland/deno/v2.9.8/LICENSE.md",
+          "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588",
+          "format": "raw",
+          "output_sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588"
+        }
+      ]
+    }
+  }
+}
