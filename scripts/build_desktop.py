@@ -40,6 +40,10 @@ def main() -> int:
     basename = distribution / f"youtube-music-downloader-{target}"
     if platform.system() == "Darwin":
         bundle = distribution / "YouTube Music Downloader.app"
+        subprocess.run(
+            [sys.executable, str(ROOT / "scripts/verify_macos_compatibility.py"), str(bundle)],
+            check=True,
+        )
         archive = basename.with_suffix(".tar.gz")
         # tar preserves executable modes and macOS framework symlinks.
         with tarfile.open(archive, "w:gz") as output:
