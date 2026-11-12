@@ -70,6 +70,13 @@ function Uninstall-TestApp {
             throw 'App uninstallation timed out.'
         }
         if ($process.ExitCode -ne 0) { throw "App uninstallation failed: $($process.ExitCode)" }
+        # Inno's temporary helper can still be deleting the original uninstaller
+        # after the launched process exits. Do not race it or invoke it twice.
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        while ((Test-Path -LiteralPath $uninstaller) -and [DateTime]::UtcNow -lt $deadline) {
+            Start-Sleep -Milliseconds 200
+        }
+        if (Test-Path -LiteralPath $uninstaller) { throw 'The uninstaller did not finish removing its files.' }
     }
 }
 
@@ -131,7 +138,7 @@ try {
     $result = @{ ok = $false; checks = $checks; error = $_.Exception.Message; clean_machine_verified = $false }
 } finally {
     try {
-        if ($installed -or (Test-Path (Join-Path $appDirectory 'unins000.exe'))) { Uninstall-TestApp }
+        if ($installed -or (Test-Path -LiteralPath $uninstallKey)) { Uninstall-TestApp }
         if ($sentinelAdded) {
             $value = Read-UserPath
             $tokens = @($value.Split(';') | Where-Object { $_.Trim().Trim('"').TrimEnd('\') -ine $sentinelDirectory })
