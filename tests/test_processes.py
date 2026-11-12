@@ -29,8 +29,11 @@ class ProcessTests(unittest.TestCase):
 
         def launch(*args, **kwargs):
             process = create_process(*args, **kwargs)
-            processes.append(process)
-            cancel.set()
+            # Windows cancellation also launches taskkill through subprocess.run.
+            # Only track the controlled converter, not its cleanup helper.
+            if str(args[0][0]) == sys.executable:
+                processes.append(process)
+                cancel.set()
             return process
 
         with tempfile.TemporaryDirectory() as directory:
