@@ -8,6 +8,12 @@ export interface AppInfo {
 
 export interface DesktopApi {
   get_app_info(): Promise<AppInfo>;
+  get_settings(): Promise<Settings>;
+  get_job(): Promise<JobState>;
+  start_download(url: string): Promise<JobState>;
+  cancel_download(): Promise<JobState>;
+  choose_download_directory(): Promise<Settings>;
+  open_download_folder(): Promise<{ ok: boolean }>;
   frontend_ready(payload: { version: string }): Promise<unknown>;
 }
 
@@ -79,4 +85,52 @@ let desktopConnection: Promise<AppInfo> | undefined;
 export function connectDesktop(): Promise<AppInfo> {
   desktopConnection ??= handshakeDesktop(window, __APP_VERSION__);
   return desktopConnection;
+}
+
+export interface Settings { download_directory: string; }
+export type JobStatus = 'idle' | 'resolving' | 'downloading' | 'converting' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
+export interface JobState {
+  job_id: string | null;
+  status: JobStatus;
+  busy: boolean;
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  fraction: number | null;
+  directory: string | null;
+  result: { path: string; title: string; video_id: string } | null;
+  error: string | null;
+}
+
+// Track replies so the native window is not destroyed while Python is replying.
+export class DesktopClient {
+  private pending = new Set<Promise<unknown>>();
+  private closing = false;
+  private api: DesktopApi;
+  constructor(api: DesktopApi) { this.api = api; }
+
+  async call<T>(operation: (api: DesktopApi) => Promise<T>): Promise<T> {
+    if (this.closing) throw new Error('The app is closing.');
+    const request = Promise.resolve().then(() => operation(this.api));
+    this.pending.add(request);
+    try { return await request; }
+    finally { this.pending.delete(request); }
+  }
+
+  async close(): Promise<void> {
+    this.closing = true;
+    while (this.pending.size) await Promise.allSettled([...this.pending]);
+  }
+}
+
+export function progressLabel(job: JobState): string {
+  switch (job.status) {
+    case 'resolving': return 'Reading video information…';
+    case 'downloading': return job.fraction === null ? 'Downloading audio…' : `Downloading audio · ${Math.round(job.fraction * 100)}%`;
+    case 'converting': return 'Converting to MP3…';
+    case 'cancelling': return 'Cancelling and cleaning up…';
+    case 'complete': return 'Your MP3 is ready';
+    case 'cancelled': return 'Download cancelled';
+    case 'failed': return 'Could not finish this download';
+    default: return 'Ready when you are';
+  }
 }

@@ -66,3 +66,26 @@ input:focus { border-color: #7e9d89; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+.link-symbol { position: absolute; left: 15px; top: 12px; font-size: 18px; color: #7b887d; }
+.convert-button { background: #355446; color: #fff; cursor: pointer; margin-top: 0; flex: 1; }
+.convert-button:hover:enabled { background: #263f34; }
+.convert-button:disabled { background: #dde5dc; color: #61745e; cursor: not-allowed; }
+input:disabled { opacity: .7; }
+.folder-row { display: flex; align-items: center; gap: 12px; margin-top: 22px; }
+.folder-copy { min-width: 0; flex: 1; }
+.folder-label { display: block; font-size: 10px; color: #7a847c; margin-bottom: 5px; }
+.folder-path { display: block; font-size: 11px; color: #4e5e53; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-hint { color: #818b80; font-size: 10px; line-height: 1.6; margin: 8px 0 18px; }
+.secondary-button { border: 1px solid #dce2d7; border-radius: 7px; background: #fafbf8; color: #455c4d; font-size: 11px; padding: 10px 12px; cursor: pointer; flex-shrink: 0; }
+.secondary-button:hover:enabled { background: #edf2e9; }
+.secondary-button:disabled { opacity: .5; cursor: not-allowed; }
+.action-row { display: flex; gap: 10px; align-items: stretch; }
+.job-status { margin-top: 22px; padding-top: 18px; border-top: 1px solid #edf0e7; }
+.status-heading { font-size: 12px; color: #455c4d; font-weight: 600; margin: 0; }
+progress { width: 100%; height: 7px; margin-top: 12px; accent-color: #557b62; }
+.result-title { font-size: 13px; font-weight: 550; color: #354c3e; margin: 12px 0 5px; overflow-wrap: anywhere; user-select: text; }
+.result-path { font-size: 10px; line-height: 1.6; color: #7c877d; overflow-wrap: anywhere; margin: 0 0 12px; user-select: text; }
+.status-detail { font-size: 11px; line-height: 1.6; color: #7c877d; margin: 10px 0 0; }
+.error-message { color: #94452f; font-size: 12px; line-height: 1.65; background: #fff5f0; border-radius: 6px; padding: 10px 12px; margin: 15px 0 0; overflow-wrap: anywhere; user-select: text; }
+.failed .status-heading { color: #94452f; }

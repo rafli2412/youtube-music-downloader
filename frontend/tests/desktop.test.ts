@@ -73,3 +73,33 @@ test('rejects stale interface files without acknowledging readiness', async () =
   });
   assert.equal(acknowledged, false);
 });
+
+test('desktop shutdown waits for pending replies and blocks new requests', async () => {
+  const { DesktopClient } = await import('../src/desktop.ts');
+  const client = new DesktopClient(api);
+  let release;
+  let finished = false;
+  const request = client.call(() => new Promise(resolve => { release = resolve; }));
+  await Promise.resolve();
+  const closing = client.close().then(() => { finished = true; });
+  await Promise.resolve();
+  assert.equal(finished, false);
+  await assert.rejects(client.call(async () => 'new job'), /closing/);
+  release('complete');
+  assert.equal(await request, 'complete');
+  await closing;
+  assert.equal(finished, true);
+});
+
+test('a failed bridge request does not prevent clean shutdown', async () => {
+  const { DesktopClient } = await import('../src/desktop.ts');
+  const client = new DesktopClient(api);
+  await assert.rejects(client.call(async () => { throw new Error('Unavailable'); }), /Unavailable/);
+  await client.close();
+});
+
+test('conversion is indeterminate even after the audio download reaches 100 percent', async () => {
+  const { progressLabel } = await import('../src/desktop.ts');
+  assert.match(progressLabel({ status: 'downloading', fraction: 1 }), /100%/);
+  assert.equal(progressLabel({ status: 'converting', fraction: 1 }), 'Converting to MP3…');
+});

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import multiprocessing
+import os
+import platform
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -11,13 +14,17 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from ytmp3 import APP_NAME, __version__
+from ytmp3.desktop_jobs import DesktopJobs
 from ytmp3.diagnostics import collect_diagnostics, write_report
 from ytmp3.runtime import app_info, frontend_directory, is_packaged
 
 
 class DesktopApi:
-    def __init__(self, on_ready: Any = None):
+    def __init__(self, on_ready: Any = None, *, jobs: DesktopJobs | None = None):
         self._on_ready = on_ready
+        self._jobs = jobs if jobs is not None else DesktopJobs()
+        self._window: Any = None
+        self._dialog_lock = threading.Lock()
 
     def get_app_info(self) -> dict[str, str | bool]:
         return app_info()
@@ -27,6 +34,46 @@ class DesktopApi:
             raise ValueError("The frontend and Python application versions do not match.")
         if self._on_ready is not None:
             self._on_ready()
+        return {"ok": True}
+
+    def get_settings(self) -> dict[str, str]:
+        return self._jobs.settings()
+
+    def get_job(self) -> dict[str, Any]:
+        return self._jobs.snapshot()
+
+    def start_download(self, url: str) -> dict[str, Any]:
+        with self._dialog_lock:
+            return self._jobs.start(url)
+
+    def cancel_download(self) -> dict[str, Any]:
+        return self._jobs.cancel()
+
+    def choose_download_directory(self) -> dict[str, str]:
+        with self._dialog_lock:
+            if self._jobs.snapshot()["busy"]:
+                raise RuntimeError("Wait for the current download before changing its folder.")
+            if self._window is None:
+                raise RuntimeError("The desktop window is not ready.")
+            import webview
+
+            current = self._jobs.settings()
+            selected = self._window.create_file_dialog(
+                webview.FileDialog.FOLDER,
+                directory=current["download_directory"],
+            )
+            return self._jobs.save_directory(selected[0]) if selected else current
+
+    def open_download_folder(self) -> dict[str, bool]:
+        directory = Path(self._jobs.result_directory())
+        if not directory.is_dir():
+            raise RuntimeError("The download folder is no longer available.")
+        if platform.system() == "Windows":
+            os.startfile(str(directory))
+        elif platform.system() == "Darwin":
+            subprocess.run(["/usr/bin/open", str(directory)], check=True, timeout=10)
+        else:
+            raise RuntimeError("Opening folders is supported on Windows and macOS.")
         return {"ok": True}
 
 
@@ -45,6 +92,7 @@ def launch_desktop(
     dev_url: str | None = None,
     smoke_report: Path | None = None,
     smoke_timeout: float = 30,
+    _jobs: DesktopJobs | None = None,
 ) -> int:
     if dev_url:
         entry = validate_dev_url(dev_url)
@@ -64,6 +112,8 @@ def launch_desktop(
     lock = threading.Lock()
     ready = threading.Event()
     closed = threading.Event()
+    close_requested = threading.Event()
+    allow_close = threading.Event()
     window: Any = None
 
     def finish(ok: bool, reason: str | None = None) -> None:
@@ -84,6 +134,7 @@ def launch_desktop(
                 report["error"] = reason
             write_report(smoke_report, report)
         if window is not None and not closed.is_set():
+            allow_close.set()
             window.destroy()
 
     def monitor_frontend() -> None:
@@ -102,22 +153,54 @@ def launch_desktop(
                 time.sleep(0.05)
         finish(False, "The desktop closed or React bridge readiness timed out")
 
-    api = DesktopApi(ready.set)
+    def on_closing() -> bool:
+        if allow_close.is_set():
+            return True
+        api._jobs.shutdown()
+        close_requested.set()
+        return False
+
+    def lifecycle() -> None:
+        if smoke_report:
+            monitor_frontend()
+            return
+        close_requested.wait()
+        if closed.is_set():
+            return
+        window.run_js("window.dispatchEvent(new Event('desktopclosing'))")
+        # Stop React polling and drain Promise replies before destroying the webview.
+        while api._jobs.snapshot()["busy"] and not closed.wait(0.1):
+            pass
+        deadline = time.monotonic() + 3
+        while not closed.is_set() and time.monotonic() < deadline:
+            if window.evaluate_js("document.documentElement.dataset.desktopClosing === 'ready'"):
+                break
+            time.sleep(0.05)
+        allow_close.set()
+        if not closed.is_set():
+            window.destroy()
+
+    api = DesktopApi(ready.set, jobs=_jobs)
     window = webview.create_window(
         APP_NAME,
         entry,
         js_api=api,
         width=760,
-        height=740,
+        height=800,
         min_size=(580, 600),
         background_color="#f7f7f5",
     )
+    api._window = window
+    window.events.closing += on_closing
     window.events.closed += closed.set
     try:
         options = {"gui": "edgechromium"} if app_info()["platform"] == "Windows" else {}
-        webview.start(monitor_frontend if smoke_report else None, debug=bool(dev_url), **options)
+        webview.start(lifecycle, debug=bool(dev_url), **options)
     finally:
+        api._jobs.shutdown()
+        api._jobs.wait()
         closed.set()
+        close_requested.set()
         if smoke_report is not None and not result["completed"]:
             finish(False, "The desktop window closed before the React bridge was ready")
     return 0 if smoke_report is None or result["ok"] else 1

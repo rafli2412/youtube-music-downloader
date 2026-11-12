@@ -2,13 +2,15 @@
 
 A terminal-first, personal-use YouTube / YouTube Music to MP3 app with a React desktop companion.
 
-## Current status — phase 3 of 6
+## Current status — phase 4 of 6
 
 The shared Python engine now downloads one public YouTube / YouTube Music video and converts its audio
 to a verified 192 kbps MP3. It supports progress callbacks, cancellation, saved folder settings, and
 safe filenames without replacing existing files. Retrieval runs in an isolated spawned process.
 
-The React window remains a **desktop foundation preview**: conversion controls are wired in phase 4.
+The React desktop window now downloads audio through the shared engine. It includes a native folder
+picker, persistent destination, progress, cancellation, readable errors, results, and an Open folder
+action. Closing the window cancels active work and waits for cleanup before exiting.
 The terminal interface now supports direct URL downloads, interactive prompting, saved default folders,
 per-download folder overrides, progress, readable errors, and Ctrl+C cancellation. Native packages
 include both a console launcher and the desktop launcher, sharing the same runtime dependencies.
@@ -26,6 +28,11 @@ through the packaged console executable with development PATH entries removed. B
 desktop launchers pass the native Apple Silicon smoke checks. The current archive is approximately
 128 MB compressed; dependency size optimization is still pending. These checks do not replace a
 clean-machine installation test.
+
+Phase 4 adds desktop job/bridge tests and manual native-window checks for folder selection, conversion,
+results, Open folder, failure, cancellation, and quitting during a job. These use controlled audio
+fixtures in an isolated session. A live GUI check encountered YouTube's verification requirement;
+the CLI received the same response on this connection. The app does not import cookies or sign in.
 
 ## Development setup
 
@@ -60,6 +67,32 @@ For React hot reload, run `npm run dev --prefix frontend` in one terminal, then
 `ytmp3 gui --dev-url http://127.0.0.1:5173` from the activated Python environment in another.
 Development URLs are restricted to loopback HTTP and disabled in packaged builds.
 
+## Use the desktop app
+
+Launch the packaged app normally, or run `ytmp3 gui` in the development environment. Paste one video
+or song link, choose the download folder if desired, and select **Convert to MP3**. The selected folder
+is remembered and shared with the terminal interface. Download progress shows a percentage when the
+size is available; resolving and conversion remain indeterminate. Use **Cancel** to stop active work.
+
+On completion, the title and full MP3 path appear with **Open folder**. Existing files are preserved.
+The app keeps one active job and disables destination changes while it is running. Closing the window
+or quitting cancels the job, waits for temporary-file/process cleanup, and then exits. A late cancel
+after publication keeps the finished MP3.
+
+If YouTube asks for verification, the app shows a readable message suggesting another public link or
+retrying later. Public access does not guarantee YouTube will accept every request from every network.
+
+For isolated manual QA without changing normal app preferences:
+
+```sh
+python scripts/check_desktop.py --directory build/desktop-check --offline
+```
+
+This opens the real React window with a real conversion engine and synthetic retrieval fixtures:
+`https://youtu.be/BaW_jenozKc` succeeds, `https://youtu.be/abcdefghijk` fails, and
+`https://youtu.be/jNQXAC9IVRw` waits for cancellation. Settings and files stay inside the supplied test
+directory. Omit `--offline` to use real public links. This developer script does not automate UI input.
+
 ## Use the terminal app
 
 From an activated development environment, or with the packaged `ytmp3` on your PATH:
@@ -69,7 +102,7 @@ From an activated development environment, or with the packaged `ytmp3` on your 
 ytmp3 "https://www.youtube.com/watch?v=jNQXAC9IVRw"
 ytmp3 download "https://music.youtube.com/watch?v=VIDEO_ID"
 
-# Save your default once; it also applies to the future GUI download workflow.
+# Save your default once; it also applies to the GUI download workflow.
 ytmp3 config set download-dir "~/Music/YouTube"
 ytmp3 config show
 
@@ -136,7 +169,7 @@ in the GUI. Only one job may run per engine instance. `DownloadResult` contains 
 and video ID. Failures are raised as exceptions; user cancellation raises `DownloadCancelled`.
 Callers should catch `DownloadError`, `SettingsError`, and `InvalidYouTubeURL` for actionable failures.
 
-Use `SettingsStore().set_download_directory(path)` to save a default, shared by CLI and future GUI
+Use `SettingsStore().set_download_directory(path)` to save a default, shared by CLI and GUI
 commands. Settings are written atomically to:
 
 - macOS: `~/Library/Application Support/YouTube Music Downloader/settings.json`.
@@ -243,8 +276,8 @@ tests/               Python foundation and acquisition checks
 
 1. Set up the project and prove desktop packaging — implemented; Windows proof remains pending CI.
 2. Build the shared Python download engine — implemented.
-3. Finish the terminal interface first — current.
-4. Build the React desktop interface.
+3. Finish the terminal interface first — implemented.
+4. Build the React desktop interface — current.
 5. Produce installable packages.
 6. Verify the complete experience.
 
