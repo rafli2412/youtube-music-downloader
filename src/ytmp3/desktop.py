@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 from ytmp3 import APP_NAME, __version__
 from ytmp3.desktop_jobs import DesktopJobs
 from ytmp3.diagnostics import collect_diagnostics, write_report
-from ytmp3.runtime import app_info, frontend_directory, is_packaged
+from ytmp3.runtime import app_info, frontend_directory, is_packaged, resource_root
 
 
 class DesktopApi:
@@ -195,6 +195,11 @@ def launch_desktop(
     window.events.closed += closed.set
     try:
         options = {"gui": "edgechromium"} if app_info()["platform"] == "Windows" else {}
+        icon_name = "app.icns" if platform.system() == "Darwin" else "app.ico"
+        icon_directory = "icons" if is_packaged() else "packaging/icons"
+        icon = resource_root() / icon_directory / icon_name
+        if icon.is_file():
+            options["icon"] = str(icon)
         webview.start(lifecycle, debug=bool(dev_url), **options)
     finally:
         api._jobs.shutdown()

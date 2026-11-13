@@ -12,6 +12,7 @@ tools = root / "vendor" / target
 suffix = ".exe" if platform.system() == "Windows" else ""
 
 datas = [(str(root / "frontend" / "dist"), "frontend")]
+datas += [(str(root / "packaging/icons"), "icons")]
 datas += collect_data_files("yt_dlp_ejs")
 for package in ("yt-dlp", "yt-dlp-ejs", "pywebview"):
     datas += copy_metadata(package)
