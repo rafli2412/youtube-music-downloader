@@ -75,7 +75,10 @@ Windows PowerShell:
 2. Select **Choose folder** to set your download destination. The app remembers it.
 3. Select **Preview video** to load its title, channel, duration, publication date/time, and thumbnail.
 4. Check that it is the correct video. Optionally enter a filename; leave it blank to use the video
-   title. A conservative English/Indonesian cleanup suggests an editable name, removing clear video,
+   title. When both track and artist metadata are available, they supply the suggested name; otherwise
+   the app uses conservative English/Indonesian title cleanup. If music metadata omits remix, cover,
+   live, or version details found in the video title, title cleanup is used to preserve those details.
+   The cleanup removes clear video,
    lyrics, official, quality, subtitle, and promotional labels while preserving the artist and musical
    versions such as remix, cover, and radio edit. A leading artist is omitted when it matches the
    channel name (ignoring case, extra spaces, and common channel labels such as `- Topic`, `Official`, `VEVO` (including `HindiaVEVO`),

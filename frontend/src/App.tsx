@@ -1,4 +1,4 @@
-import { suggestFilename } from './title';
+import { suggestVideoFilename } from './title';
 import { VideoDetails } from './VideoDetails';
 import { useEffect, useRef, useState } from 'react';
 import { connectDesktop, DesktopClient, progressLabel, VersionMismatchError } from './desktop';
@@ -77,7 +77,7 @@ export function App() {
 
   useEffect(() => {
     if (job.status === 'ready' && job.metadata?.title) {
-      setFilename(suggestFilename(job.metadata.title, job.metadata.channel));
+      setFilename(suggestVideoFilename(job.metadata));
     }
   }, [job.status, job.job_id]);
 

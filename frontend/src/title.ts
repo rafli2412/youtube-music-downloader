@@ -87,3 +87,29 @@ export function suggestFilename(title: string, channel?: string | null): string 
   }
   return withoutMatchingArtist(result || title.trim(), channel);
 }
+
+interface SongMetadata {
+  title?: string | null;
+  channel?: string | null;
+  track?: string | null;
+  artist?: string | null;
+}
+
+/** Prefer structured music metadata, retaining title parsing for missing/ambiguous data. */
+export function suggestVideoFilename(video: SongMetadata): string {
+  const title = video.title ?? '';
+  const track = video.track?.trim();
+  const artist = video.artist?.trim();
+  if (!track || !artist) return suggestFilename(title, video.channel);
+
+  // Licensed music metadata may describe the original recording, not a cover/remix upload.
+  const qualifiers = /\b(?:remix|mix|radio\s+edit|version|versi|cover|live|acoustic|akustik|instrumental|remaster(?:ed)?|sped\s+up|slowed|reverb)\b/gi;
+  const titleVersions = [...title.matchAll(qualifiers)].map(match => match[0].toLowerCase().replace(/\s+/g, ' '));
+  const trackVersions = new Set([...track.matchAll(qualifiers)].map(match => match[0].toLowerCase().replace(/\s+/g, ' ')));
+  const titleYears = titleVersions.length ? title.match(/\b(?:19|20)\d{2}\b/g) ?? [] : [];
+  if (titleVersions.some(version => !trackVersions.has(version)) || titleYears.some(year => !track.includes(year))) {
+    return suggestFilename(title, video.channel);
+  }
+  // Track names are actual song metadata: do not strip label-like words from them.
+  return withoutMatchingArtist(`${artist} - ${track}`, video.channel);
+}

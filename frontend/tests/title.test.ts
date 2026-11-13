@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { suggestFilename } from '../src/title.ts';
+import { suggestFilename, suggestVideoFilename } from '../src/title.ts';
 
 const cases: [string, string][] = [
   ['FSTVLST - Apa Kabar Opus (Lirik Video)', 'FSTVLST - Apa Kabar Opus'],
@@ -107,3 +107,24 @@ test('cleanup remains stable across artist, title, label, and channel combinatio
     }
   }
 });
+
+const metadataCases = [
+  { video: { title: 'Messy upload (Official Video)', channel: 'HindiaVEVO', track: 'Song', artist: 'Hindia' }, expected: 'Song' },
+  { video: { title: 'Messy upload [Lyrics]', channel: 'Music Label', track: 'Song', artist: 'Hindia' }, expected: 'Hindia - Song' },
+  { video: { title: 'Artist - Upload [Lyrics]', channel: 'Artist', track: 'Lyrics', artist: 'Artist' }, expected: 'Lyrics' },
+  { video: { title: 'Artist - Upload', channel: 'Label', track: 'Official Music Video', artist: 'Artist' }, expected: 'Artist - Official Music Video' },
+  { video: { title: 'Hindia - Song [Lyrics]', channel: 'Hindia', track: '', artist: 'Hindia' }, expected: 'Song' },
+  { video: { title: 'Hindia - Song [Lyrics]', channel: 'Hindia', track: 'Underlying Song' }, expected: 'Song' },
+  { video: { title: 'Hindia - Song (Remix) [Official Video]', channel: 'Hindia', track: 'Song', artist: 'Hindia' }, expected: 'Song (Remix)' },
+  { video: { title: 'Artist - Song (Cover)', channel: 'Performer', track: 'Song', artist: 'Original Artist' }, expected: 'Artist - Song (Cover)' },
+  { video: { title: 'Hindia - Song (1998 Version)', channel: 'Hindia', track: 'Song (Version)', artist: 'Hindia' }, expected: 'Song (1998 Version)' },
+  { video: { title: 'Song (Radio Edit)', channel: 'Artist Official', track: 'Song (Radio Edit)', artist: 'Artist' }, expected: 'Song (Radio Edit)' },
+  { video: { title: 'Upload [Lyrics]', channel: 'Label', track: ' Song ', artist: ' Artist A & Artist B ' }, expected: 'Artist A & Artist B - Song' },
+];
+for (const { video, expected } of metadataCases) {
+  test(`uses metadata or conservative fallback: ${video.title} / ${video.track}`, () => {
+    const original = { ...video };
+    assert.equal(suggestVideoFilename(video), expected);
+    assert.deepEqual(video, original, 'preview metadata must remain unchanged');
+  });
+}

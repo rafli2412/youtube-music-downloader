@@ -91,6 +91,8 @@ export function connectDesktop(): Promise<AppInfo> {
 export interface Settings { download_directory: string; }
 export type JobStatus = 'idle' | 'ready' | 'resolving' | 'downloading' | 'converting' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
 export interface VideoMetadata {
+  track?: string | null;
+  artist?: string | null;
   title: string | null;
   channel: string | null;
   duration: number | null;
