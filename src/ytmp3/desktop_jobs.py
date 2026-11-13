@@ -10,6 +10,7 @@ from typing import Any
 
 from ytmp3.engine import DownloadCancelled, DownloadEngine, DownloadProgress
 from ytmp3.settings import SettingsStore
+from ytmp3.tags import normalize_tags
 from ytmp3.urls import normalize_youtube_url
 
 
@@ -65,7 +66,14 @@ class DesktopJobs:
     def preview(self, url: str) -> dict[str, Any]:
         return self._start(url, preview=True)
 
-    def confirm(self, url: str, preview_job_id: str, filename: str | None = None) -> dict[str, Any]:
+    def confirm(
+        self,
+        url: str,
+        preview_job_id: str,
+        filename: str | None = None,
+        tags: dict[str, Any] | None = None,
+        cover_data: bytes | None = None,
+    ) -> dict[str, Any]:
         normalized = normalize_youtube_url(url)
         with self._lock:
             if (
@@ -76,14 +84,27 @@ class DesktopJobs:
             ):
                 raise RuntimeError("Preview this video before downloading it.")
             metadata = copy.deepcopy(self._state["metadata"])
-            self._start(normalized, preview=False, filename=filename)
+            options = normalize_tags(tags, metadata or {})
+            if options["enabled"] and options["cover"] == "local" and not cover_data:
+                raise ValueError("Choose a local cover image before downloading.")
+            self._start(
+                normalized, preview=False, filename=filename, tags=options, cover_data=cover_data
+            )
             self._state["metadata"] = metadata
             return self.snapshot()
 
     def start(self, url: str) -> dict[str, Any]:
         return self._start(url, preview=False)
 
-    def _start(self, url: str, *, preview: bool, filename: str | None = None) -> dict[str, Any]:
+    def _start(
+        self,
+        url: str,
+        *,
+        preview: bool,
+        filename: str | None = None,
+        tags: dict[str, Any] | None = None,
+        cover_data: bytes | None = None,
+    ) -> dict[str, Any]:
         normalized = normalize_youtube_url(url)
         with self._lock:
             if self._closing:
@@ -107,7 +128,7 @@ class DesktopJobs:
             )
             self._thread = threading.Thread(
                 target=self._run,
-                args=(normalized, directory, preview, filename),
+                args=(normalized, directory, preview, filename, tags, cover_data),
                 name="ytmp3-desktop-job",
             )
             try:
@@ -157,7 +178,13 @@ class DesktopJobs:
             )
 
     def _run(
-        self, url: str, directory: Any, preview: bool = False, filename: str | None = None
+        self,
+        url: str,
+        directory: Any,
+        preview: bool = False,
+        filename: str | None = None,
+        tags: dict[str, Any] | None = None,
+        cover_data: bytes | None = None,
     ) -> None:
         try:
             if preview:
@@ -175,6 +202,8 @@ class DesktopJobs:
                 on_progress=self._progress,
                 cancel=self._cancel,
                 **({"filename": filename} if filename else {}),
+                **({"tags": tags} if tags is not None else {}),
+                **({"cover_data": cover_data} if cover_data is not None else {}),
             )
             with self._lock:
                 self._state.update(

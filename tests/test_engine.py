@@ -132,7 +132,7 @@ class EngineIntegrationTests(unittest.TestCase):
         self.assertGreater(float(stream["duration"]), 0)
         self.assertEqual(
             [event.stage for event in events],
-            ["resolving", "downloading", "converting", "complete"],
+            ["resolving", "downloading", "converting", "tagging", "complete"],
         )
         self.assertEqual(events[1].fraction, 1)
 

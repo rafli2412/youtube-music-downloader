@@ -9,6 +9,7 @@ Use the desktop window or run downloads from your terminal.
 - Follow download progress, cancel a download, and open the destination folder.
 - See the video title, channel, duration, publication date/time, and thumbnail while downloading
   and converting. Exact publication time is shown when YouTube provides it; otherwise the date is used.
+- Edit embedded song title, artist, album, release year, and cover art before downloading.
 - Select **Convert another video** after completion to clear the link and start again.
 
 Packaged apps include Python, FFmpeg/ffprobe, and Deno. You do not need to install these tools or Node.js
@@ -100,6 +101,23 @@ Use **Cancel** to stop a download. Closing the window during a job cancels it an
 Existing files are preserved. On Mac, select an MP3 in Finder and press Space to preview it, or open
 it with QuickTime Player.
 
+## Song tags and cover art
+
+After previewing a video, use **Song tags** to edit the song title, artist, album, and release year.
+Available music metadata is prefilled; missing artist/album/year values remain blank. The song title
+is independent of the filename. Changing one does not change the other. Release year comes from
+release metadata, never the video upload year; you can enter a four-digit year manually.
+
+Choose **Video thumbnail**, **Local image**, or **No cover**. **Choose image…** opens a native file
+picker and previews your selection. JPEG, PNG, and WebP images up to 10 MB and 40 megapixels are
+supported. Artwork is resized to fit within 1024×1024 without cropping and embedded as a JPEG front
+cover. The video thumbnail may not be the actual album cover.
+
+Tags and artwork are included by default using ID3v2.3. Uncheck **Include tags and artwork** to omit
+both. Blank tag fields are omitted. Invalid tag values are reported before downloading; if artwork
+cannot be loaded or processed, the download fails without publishing a partial MP3. Choose another
+image or no cover and try again. Temporary artwork is cleaned up with the download's other work files.
+
 ## Use the terminal app
 
 With `ytmp3` on your PATH:
@@ -117,6 +135,9 @@ ytmp3 config show
 
 # Use a different folder for this download only.
 ytmp3 "https://youtu.be/VIDEO_ID" --directory "./my downloads"
+
+# Download without song tags or artwork.
+ytmp3 "https://youtu.be/VIDEO_ID" --no-tags
 
 # Other commands.
 ytmp3           # Prompt for a link in an interactive terminal.

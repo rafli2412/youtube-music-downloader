@@ -25,6 +25,14 @@ from typing import Any
 
 from ytmp3.runtime import tool_path
 from ytmp3.settings import SettingsStore, prepare_download_directory
+from ytmp3.tags import (
+    MAX_COVER_BYTES,
+    image_mime,
+    load_thumbnail,
+    normalize_tags,
+    release_year,
+    write_tags,
+)
 from ytmp3.urls import normalize_youtube_url
 
 
@@ -132,6 +140,8 @@ def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
         "title": info.get("title"),
         "track": text(info.get("track")),
         "artist": artist,
+        "album": text(info.get("album")),
+        "release_year": release_year(info),
         "channel": info.get("channel") or info.get("uploader"),
         "duration": info.get("duration"),
         "published_date": info.get("upload_date"),
@@ -352,6 +362,8 @@ class DownloadEngine:
         on_progress: Callable[[DownloadProgress], None] | None = None,
         cancel: threading.Event | None = None,
         filename: str | None = None,
+        tags: dict[str, Any] | None = None,
+        cover_data: bytes | None = None,
     ) -> DownloadResult:
         if not self._lock.acquire(blocking=False):
             raise DownloadBusy("A download is already running.")
@@ -386,6 +398,15 @@ class DownloadEngine:
                 self._check_cancel(cancellation)
                 notify(DownloadProgress("converting", metadata=item.get("metadata")))
                 mp3 = self._convert(source, temporary, cancellation)
+                metadata = item.get("metadata") or {"title": item["title"]}
+                try:
+                    tag_options = normalize_tags(tags, metadata)
+                    notify(DownloadProgress("tagging"))
+                    self._apply_tags(
+                        mp3, temporary, tag_options, metadata, cover_data, cancellation
+                    )
+                except (ValueError, OSError) as error:
+                    raise DownloadError(f"Cannot write song tags or cover: {error}") from error
                 stem = safe_stem(custom_name or item["title"], item["id"])
                 self._check_cancel(cancellation)
                 result = DownloadResult(
@@ -511,6 +532,83 @@ class DownloadEngine:
         if not valid:
             raise ConversionError("Conversion did not produce a valid MP3 file.")
         return output
+
+    def _apply_tags(
+        self,
+        mp3: Path,
+        directory: Path,
+        options: dict[str, Any],
+        metadata: dict[str, Any],
+        cover_data: bytes | None,
+        cancel: threading.Event,
+    ) -> None:
+        self._check_cancel(cancel)
+        jpeg = None
+        if options["enabled"] and options["cover"] != "none":
+            if options["cover"] == "thumbnail":
+                url = metadata.get("thumbnail")
+                if not url:
+                    raise ValueError("No thumbnail is available. Choose a local image or no cover.")
+                data = load_thumbnail(url, lambda: self._check_cancel(cancel))
+            else:
+                data = cover_data
+                if not data:
+                    raise ValueError("Choose a local cover image before downloading.")
+            if len(data) > MAX_COVER_BYTES:
+                raise ValueError("Cover images must be 10 MB or smaller.")
+            image_mime(data)
+            cover = directory / "cover-image"
+            cover.write_bytes(data)
+            probe = json.loads(
+                self._execute_tool(
+                    "ffprobe",
+                    [
+                        "-v",
+                        "error",
+                        "-select_streams",
+                        "v:0",
+                        "-show_entries",
+                        "stream=width,height",
+                        "-of",
+                        "json",
+                        str(cover),
+                    ],
+                    directory,
+                    cancel,
+                )
+            )
+            streams = probe.get("streams", [])
+            if not streams or not (
+                0 < streams[0].get("width", 0) * streams[0].get("height", 0) <= 40_000_000
+            ):
+                raise ValueError("Choose a cover image of 40 megapixels or smaller.")
+            output = directory / "cover.jpg"
+            self._execute_tool(
+                "ffmpeg",
+                [
+                    "-nostdin",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-protocol_whitelist",
+                    "file,pipe",
+                    "-i",
+                    str(cover),
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    "scale=1024:1024:force_original_aspect_ratio=decrease",
+                    "-q:v",
+                    "2",
+                    str(output),
+                ],
+                directory,
+                cancel,
+            )
+            jpeg = output.read_bytes()
+        self._check_cancel(cancel)
+        write_tags(mp3, options, jpeg)
+        self._check_cancel(cancel)
 
     def _execute_tool(
         self, name: str, arguments: list[str], directory: Path, cancel: threading.Event

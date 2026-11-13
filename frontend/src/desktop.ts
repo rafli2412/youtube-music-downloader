@@ -11,7 +11,8 @@ export interface DesktopApi {
   get_settings(): Promise<Settings>;
   get_job(): Promise<JobState>;
   preview_video(url: string): Promise<JobState>;
-  start_download(url: string, previewJobId: string, filename?: string): Promise<JobState>;
+  start_download(url: string, previewJobId: string, filename?: string, tags?: SongTags): Promise<JobState>;
+  choose_cover(): Promise<CoverSelection | null>;
   cancel_download(): Promise<JobState>;
   choose_download_directory(): Promise<Settings>;
   open_download_folder(): Promise<{ ok: boolean }>;
@@ -88,9 +89,21 @@ export function connectDesktop(): Promise<AppInfo> {
   return desktopConnection;
 }
 
+export interface SongTags {
+  enabled: boolean;
+  title: string;
+  artist: string;
+  album: string;
+  year: string;
+  cover: 'thumbnail' | 'local' | 'none';
+}
+export interface CoverSelection { name: string; preview: string; }
+
 export interface Settings { download_directory: string; }
-export type JobStatus = 'idle' | 'ready' | 'resolving' | 'downloading' | 'converting' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
+export type JobStatus = 'idle' | 'ready' | 'resolving' | 'downloading' | 'converting' | 'tagging' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
 export interface VideoMetadata {
+  album?: string | null;
+  release_year?: string | null;
   track?: string | null;
   artist?: string | null;
   title: string | null;
@@ -141,6 +154,7 @@ export function progressLabel(job: JobState): string {
     case 'resolving': return 'Reading video information…';
     case 'downloading': return job.fraction === null ? 'Downloading audio…' : `Downloading audio · ${Math.round(job.fraction * 100)}%`;
     case 'converting': return 'Converting to MP3…';
+    case 'tagging': return 'Writing song tags and cover…';
     case 'cancelling': return 'Cancelling and cleaning up…';
     case 'complete': return 'Your MP3 is ready';
     case 'cancelled': return 'Download cancelled';

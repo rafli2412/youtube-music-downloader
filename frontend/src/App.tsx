@@ -1,8 +1,10 @@
+import { TagEditor } from './TagEditor';
+import { defaultSongTags } from './song-tags';
 import { suggestVideoFilename } from './title';
 import { VideoDetails } from './VideoDetails';
 import { useEffect, useRef, useState } from 'react';
 import { connectDesktop, DesktopClient, progressLabel, VersionMismatchError } from './desktop';
-import type { AppInfo, JobState } from './desktop';
+import type { AppInfo, JobState, SongTags, CoverSelection } from './desktop';
 
 const emptyJob: JobState = { job_id: null, status: 'idle', busy: false, downloaded_bytes: 0, total_bytes: null, fraction: null, directory: null, result: null, error: null };
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -16,6 +18,8 @@ export function App() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [url, setUrl] = useState('');
   const [filename, setFilename] = useState('');
+  const [tags, setTags] = useState<SongTags>(() => defaultSongTags());
+  const [cover, setCover] = useState<CoverSelection | null>(null);
   const [directory, setDirectory] = useState<string | null>(null);
   const [job, setJob] = useState<JobState>(emptyJob);
   const [pending, setPending] = useState(false);
@@ -78,6 +82,8 @@ export function App() {
   useEffect(() => {
     if (job.status === 'ready' && job.metadata?.title) {
       setFilename(suggestVideoFilename(job.metadata));
+      setTags(defaultSongTags(job.metadata));
+      setCover(null);
     }
   }, [job.status, job.job_id]);
 
@@ -88,8 +94,17 @@ export function App() {
     setPending(true); setError(null);
     if (!previewJobId) { setJob(emptyJob); setFilename(''); }
     try {
-      const state = await client.current.call(api => previewJobId ? api.start_download(url, previewJobId, filename.trim()) : api.preview_video(url));
+      const state = await client.current.call(api => previewJobId ? api.start_download(url, previewJobId, filename.trim(), tags) : api.preview_video(url));
       if (!closingRef.current) { setJob(state); if (state.directory) setDirectory(state.directory); }
+    } catch (failure) { if (!closingRef.current) setError(message(failure)); }
+    finally { if (!closingRef.current) setPending(false); }
+  };
+  const chooseCover = async () => {
+    if (!client.current || pending || job.busy || closingRef.current) return;
+    setPending(true); setError(null);
+    try {
+      const selected = await client.current.call(api => api.choose_cover());
+      if (selected && !closingRef.current) { setCover(selected); setTags(current => ({ ...current, cover: 'local' })); }
     } catch (failure) { if (!closingRef.current) setError(message(failure)); }
     finally { if (!closingRef.current) setPending(false); }
   };
@@ -147,8 +162,8 @@ export function App() {
           <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => { ++epoch.current; setUrl(event.target.value); setFilename(''); setJob(emptyJob); setError(null); }} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
           <div className="folder-row"><div className="folder-copy"><span className="folder-label">Save to</span><span id="download-directory" className="folder-path" title={directory ?? ''}>{directory ?? 'Your default download folder'}</span></div><button id="choose-folder" className="secondary-button" type="button" onClick={() => void chooseFolder()} disabled={disabled || job.busy}>Choose folder</button></div>
           <p className="folder-hint">Remembered for future downloads, including the terminal app.</p>
-          {job.status === 'ready' && job.metadata && <div className="video-preview"><p className="status-heading">Is this the video you want?</p><VideoDetails video={job.metadata} /><div className="filename-heading"><label htmlFor="download-filename">Filename (optional)</label><button id="restore-filename" className="secondary-button" type="button" disabled={disabled || filename === filenameTarget} onClick={() => setFilename(filenameTarget)}>{useParsedTitle ? 'Use parsed title' : 'Restore original'}</button></div><div className="filename-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><p className="status-detail">No audio has been downloaded. Review the details before continuing.</p></div>}
-          <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim()}>{pending && !job.busy ? 'Please wait…' : job.status === 'ready' ? 'Download MP3' : 'Preview video'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
+          {job.status === 'ready' && job.metadata && <div className="video-preview"><p className="status-heading">Is this the video you want?</p><VideoDetails video={job.metadata} /><div className="filename-heading"><label htmlFor="download-filename">Filename (optional)</label><button id="restore-filename" className="secondary-button" type="button" disabled={disabled || filename === filenameTarget} onClick={() => setFilename(filenameTarget)}>{useParsedTitle ? 'Use parsed title' : 'Restore original'}</button></div><div className="filename-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><TagEditor value={tags} onChange={setTags} cover={cover} thumbnail={job.metadata.thumbnail} onChooseCover={() => void chooseCover()} disabled={disabled} /><p className="status-detail">No audio has been downloaded. Review the details before continuing.</p></div>}
+          <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim() || (job.status === 'ready' && tags.enabled && tags.cover === 'local' && !cover)}>{pending && !job.busy ? 'Please wait…' : job.status === 'ready' ? 'Download MP3' : 'Preview video'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
         </form>
         {((job.status !== 'idle' && job.status !== 'ready') || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">
           <p className="status-heading" role="status" aria-live="polite">{status}</p>

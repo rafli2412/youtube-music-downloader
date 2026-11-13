@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import multiprocessing
 import os
 import platform
@@ -17,6 +18,7 @@ from ytmp3 import APP_NAME, __version__
 from ytmp3.desktop_jobs import DesktopJobs
 from ytmp3.diagnostics import collect_diagnostics, write_report
 from ytmp3.runtime import app_info, frontend_directory, is_packaged, resource_root
+from ytmp3.tags import MAX_COVER_BYTES, image_mime
 
 
 class DesktopApi:
@@ -25,6 +27,8 @@ class DesktopApi:
         self._jobs = jobs if jobs is not None else DesktopJobs()
         self._window: Any = None
         self._dialog_lock = threading.Lock()
+        self._cover_data: bytes | None = None
+        self._cover_job_id: str | None = None
 
     def get_app_info(self) -> dict[str, str | bool]:
         return app_info()
@@ -44,13 +48,50 @@ class DesktopApi:
 
     def preview_video(self, url: str) -> dict[str, Any]:
         with self._dialog_lock:
-            return self._jobs.preview(url)
+            state = self._jobs.preview(url)
+            self._cover_data = None
+            self._cover_job_id = None
+            return state
 
     def start_download(
-        self, url: str, preview_job_id: str, filename: str | None = None
+        self,
+        url: str,
+        preview_job_id: str,
+        filename: str | None = None,
+        tags: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         with self._dialog_lock:
-            return self._jobs.confirm(url, preview_job_id, filename)
+            cover = self._cover_data if self._cover_job_id == preview_job_id else None
+            return self._jobs.confirm(url, preview_job_id, filename, tags, cover)
+
+    def choose_cover(self) -> dict[str, str] | None:
+        with self._dialog_lock:
+            state = self._jobs.snapshot()
+            if state["busy"] or state["status"] != "ready":
+                raise RuntimeError("Preview a video before choosing its cover.")
+            if self._window is None:
+                raise RuntimeError("The desktop window is not ready.")
+            import webview
+
+            selected = self._window.create_file_dialog(
+                webview.FileDialog.OPEN,
+                allow_multiple=False,
+                file_types=("Images (*.jpg;*.jpeg;*.png;*.webp)",),
+            )
+            if not selected:
+                return None
+            path = Path(selected[0])
+            with path.open("rb") as source:
+                data = source.read(MAX_COVER_BYTES + 1)
+            if len(data) > MAX_COVER_BYTES:
+                raise ValueError("Cover images must be 10 MB or smaller.")
+            mime = image_mime(data)
+            self._cover_data = data
+            self._cover_job_id = state["job_id"]
+            return {
+                "name": path.name,
+                "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+            }
 
     def cancel_download(self) -> dict[str, Any]:
         return self._jobs.cancel()

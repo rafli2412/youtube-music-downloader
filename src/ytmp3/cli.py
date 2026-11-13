@@ -55,6 +55,7 @@ class TerminalProgress:
             "resolving": "Resolving link...",
             "downloading": "Downloading audio...",
             "converting": "Converting to MP3...",
+            "tagging": "Writing song tags and cover...",
         }
         if event.stage not in labels:
             return
@@ -113,6 +114,7 @@ def _parser() -> argparse.ArgumentParser:
     download.add_argument(
         "-d", "--directory", type=Path, help="Output folder for this download only"
     )
+    download.add_argument("--no-tags", action="store_true", help="Omit song tags and cover artwork")
     config = commands.add_parser("config", help="View or change the saved download folder")
     configuration = config.add_subparsers(dest="config_command", required=True)
     configuration.add_parser("show", help="Show the default folder and settings file")
@@ -126,7 +128,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _download(url: str, directory: Path | None) -> int:
+def _download(url: str, directory: Path | None, *, no_tags: bool = False) -> int:
     normalized = normalize_youtube_url(url)
     cancel = threading.Event()
     progress = TerminalProgress(sys.stderr)
@@ -134,7 +136,11 @@ def _download(url: str, directory: Path | None) -> int:
         with _cancel_on_sigint(cancel):
             try:
                 result = DownloadEngine(SettingsStore()).download(
-                    normalized, directory=directory, on_progress=progress, cancel=cancel
+                    normalized,
+                    directory=directory,
+                    on_progress=progress,
+                    cancel=cancel,
+                    **({"tags": {"enabled": False}} if no_tags else {}),
                 )
             except DownloadError as error:
                 if cancel.is_set():
@@ -168,7 +174,9 @@ def main(argv: list[str] | None = None) -> int:
                     url = input("YouTube or YouTube Music link: ")
                 except EOFError:
                     return 0
-            return _download(url, getattr(args, "directory", None))
+            return _download(
+                url, getattr(args, "directory", None), no_tags=getattr(args, "no_tags", False)
+            )
         if args.command == "config":
             settings = SettingsStore()
             if args.config_command == "show":
