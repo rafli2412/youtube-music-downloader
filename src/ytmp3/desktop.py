@@ -42,9 +42,13 @@ class DesktopApi:
     def get_job(self) -> dict[str, Any]:
         return self._jobs.snapshot()
 
-    def start_download(self, url: str) -> dict[str, Any]:
+    def preview_video(self, url: str) -> dict[str, Any]:
         with self._dialog_lock:
-            return self._jobs.start(url)
+            return self._jobs.preview(url)
+
+    def start_download(self, url: str, preview_job_id: str) -> dict[str, Any]:
+        with self._dialog_lock:
+            return self._jobs.confirm(url, preview_job_id)
 
     def cancel_download(self) -> dict[str, Any]:
         return self._jobs.cancel()

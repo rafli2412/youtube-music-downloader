@@ -9,6 +9,17 @@ from ytmp3.engine import _extract_audio
 
 
 class VerificationRetryTests(unittest.TestCase):
+    def test_preview_extracts_information_without_downloading_media(self):
+        info = {"id": "abcdefghijk", "title": "Preview", "availability": "public"}
+        with patch("yt_dlp.YoutubeDL") as factory:
+            downloader = factory.return_value.__enter__.return_value
+            downloader.extract_info.return_value = info
+            downloader.prepare_filename.return_value = "unused.webm"
+            _extract_audio("https://youtu.be/abcdefghijk", {}, download=False)
+            downloader.extract_info.assert_called_once_with(
+                "https://youtu.be/abcdefghijk", download=False
+            )
+
     def test_transient_verification_retries_once_with_a_pause_and_fresh_downloader(self):
         info = {"id": "abcdefghijk", "title": "Audio", "availability": "public"}
         with patch("yt_dlp.YoutubeDL") as factory, patch("ytmp3.engine.time.sleep") as pause:

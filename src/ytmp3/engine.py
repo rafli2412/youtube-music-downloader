@@ -132,13 +132,15 @@ def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _extract_audio(url: str, options: dict[str, Any]) -> tuple[dict[str, Any], Path]:
+def _extract_audio(
+    url: str, options: dict[str, Any], *, download: bool = True
+) -> tuple[dict[str, Any], Path]:
     import yt_dlp
 
     for attempt in range(2):
         try:
             with yt_dlp.YoutubeDL(options) as downloader:
-                info = downloader.extract_info(url, download=True)
+                info = downloader.extract_info(url, download=download)
                 if not info:
                     raise UnsupportedContent("This item is unavailable or cannot be downloaded.")
                 validate_content(info)
@@ -153,7 +155,9 @@ def _extract_audio(url: str, options: dict[str, Any]) -> tuple[dict[str, Any], P
     raise AssertionError("Unreachable retrieval state")
 
 
-def _download_worker(connection: Any, url: str, directory: str, deno: str) -> None:
+def _download_worker(
+    connection: Any, url: str, directory: str, deno: str, preview: bool = False
+) -> None:
     """No GUI imports or inherited yt-dlp state in this child process."""
     try:
         # The CLI parent owns cancellation, including Windows console Ctrl+C.
@@ -219,7 +223,7 @@ def _download_worker(connection: Any, url: str, directory: str, deno: str) -> No
             "match_filter": content_filter,
             "extractor_args": {"youtube": {"player_client": ["default"]}},
         }
-        info, source = _extract_audio(url, options)
+        info, source = _extract_audio(url, options, download=not preview)
         connection.send(
             {
                 "kind": "result",
@@ -239,6 +243,10 @@ def _download_worker(connection: Any, url: str, directory: str, deno: str) -> No
         )
     finally:
         connection.close()
+
+
+def _preview_worker(connection: Any, url: str, directory: str, deno: str) -> None:
+    _download_worker(connection, url, directory, deno, preview=True)
 
 
 def _stop_process_tree(process: Any, *, worker: bool = False) -> None:
@@ -298,6 +306,35 @@ class DownloadEngine:
     def _check_cancel(cancel: threading.Event) -> None:
         if cancel.is_set():
             raise DownloadCancelled("Download cancelled.")
+
+    def preview(
+        self,
+        url: str,
+        *,
+        cancel: threading.Event | None = None,
+        on_progress: Callable[[DownloadProgress], None] | None = None,
+    ) -> dict[str, Any]:
+        """Fetch metadata only, without downloading audio or creating the destination."""
+        if not self._lock.acquire(blocking=False):
+            raise DownloadBusy("A download is already running.")
+        cancellation = cancel if cancel is not None else threading.Event()
+        try:
+            normalized = normalize_youtube_url(url)
+            self._check_cancel(cancellation)
+            if not tool_path("deno").is_file():
+                raise DependencyError("Bundled deno is missing. Reinstall the application.")
+            with tempfile.TemporaryDirectory(prefix="ytmp3-preview-") as work:
+                item = self._retrieve(
+                    normalized,
+                    Path(work),
+                    cancellation,
+                    on_progress or (lambda event: None),
+                    preview=True,
+                )
+                self._check_cancel(cancellation)
+                return item["metadata"]
+        finally:
+            self._lock.release()
 
     def download(
         self,
@@ -361,12 +398,18 @@ class DownloadEngine:
             self._lock.release()
 
     def _retrieve(
-        self, url: str, directory: Path, cancel: threading.Event, notify: Callable
+        self,
+        url: str,
+        directory: Path,
+        cancel: threading.Event,
+        notify: Callable,
+        *,
+        preview: bool = False,
     ) -> dict[str, Any]:
         context = multiprocessing.get_context("spawn")
         receive, send = context.Pipe(duplex=False)
         process = context.Process(
-            target=self._worker_target,
+            target=_preview_worker if preview else self._worker_target,
             args=(send, url, str(directory), str(tool_path("deno"))),
         )
         started = False

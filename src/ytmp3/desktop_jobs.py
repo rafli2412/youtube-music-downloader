@@ -33,6 +33,7 @@ class DesktopJobs:
         self._lock = threading.RLock()
         self._cancel = threading.Event()
         self._closing = False
+        self._preview_url: str | None = None
         self._thread: threading.Thread | None = None
         self._state: dict[str, Any] = {
             "job_id": None,
@@ -61,7 +62,28 @@ class DesktopJobs:
                 raise RuntimeError("Wait for the current download before changing its folder.")
             return {"download_directory": str(self._settings.set_download_directory(directory))}
 
+    def preview(self, url: str) -> dict[str, Any]:
+        return self._start(url, preview=True)
+
+    def confirm(self, url: str, preview_job_id: str) -> dict[str, Any]:
+        normalized = normalize_youtube_url(url)
+        with self._lock:
+            if (
+                self._state["status"] != "ready"
+                or self._state["busy"]
+                or self._state["job_id"] != preview_job_id
+                or self._preview_url != normalized
+            ):
+                raise RuntimeError("Preview this video before downloading it.")
+            metadata = copy.deepcopy(self._state["metadata"])
+            self.start(normalized)
+            self._state["metadata"] = metadata
+            return self.snapshot()
+
     def start(self, url: str) -> dict[str, Any]:
+        return self._start(url, preview=False)
+
+    def _start(self, url: str, *, preview: bool) -> dict[str, Any]:
         normalized = normalize_youtube_url(url)
         with self._lock:
             if self._closing:
@@ -69,6 +91,7 @@ class DesktopJobs:
             if self._state["busy"]:
                 raise RuntimeError("A download is already running.")
             directory = self._settings.get_download_directory()
+            self._preview_url = normalized if preview else None
             self._cancel = threading.Event()
             self._state.update(
                 job_id=uuid.uuid4().hex,
@@ -84,7 +107,7 @@ class DesktopJobs:
             )
             self._thread = threading.Thread(
                 target=self._run,
-                args=(normalized, directory),
+                args=(normalized, directory, preview),
                 name="ytmp3-desktop-job",
             )
             try:
@@ -133,8 +156,17 @@ class DesktopJobs:
                 fraction=event.fraction,
             )
 
-    def _run(self, url: str, directory: Any) -> None:
+    def _run(self, url: str, directory: Any, preview: bool = False) -> None:
         try:
+            if preview:
+                metadata = self._engine.preview(
+                    url, cancel=self._cancel, on_progress=self._progress
+                )
+                with self._lock:
+                    if self._cancel.is_set():
+                        raise DownloadCancelled("Preview cancelled.")
+                    self._state.update(status="ready", metadata=metadata, result=None, error=None)
+                return
             result = self._engine.download(
                 url,
                 directory=directory,

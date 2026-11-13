@@ -76,9 +76,11 @@ export function App() {
   const start = async () => {
     if (!client.current || pending || job.busy || closingRef.current) return;
     ++epoch.current;
-    setPending(true); setError(null); setJob(emptyJob);
+    const previewJobId = job.status === 'ready' ? job.job_id : null;
+    setPending(true); setError(null);
+    if (!previewJobId) setJob(emptyJob);
     try {
-      const state = await client.current.call(api => api.start_download(url));
+      const state = await client.current.call(api => previewJobId ? api.start_download(url, previewJobId) : api.preview_video(url));
       if (!closingRef.current) { setJob(state); if (state.directory) setDirectory(state.directory); }
     } catch (failure) { if (!closingRef.current) setError(message(failure)); }
     finally { if (!closingRef.current) setPending(false); }
@@ -129,12 +131,13 @@ export function App() {
         <div className="card-heading"><h2 id="download-heading">Start with a link</h2><span className="format-label">MP3</span></div>
         <form onSubmit={event => { event.preventDefault(); void start(); }}>
           <label htmlFor="video-url">Video or song link</label>
-          <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => setUrl(event.target.value)} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
+          <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => { ++epoch.current; setUrl(event.target.value); setJob(emptyJob); setError(null); }} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
           <div className="folder-row"><div className="folder-copy"><span className="folder-label">Save to</span><span id="download-directory" className="folder-path" title={directory ?? ''}>{directory ?? 'Your default download folder'}</span></div><button id="choose-folder" className="secondary-button" type="button" onClick={() => void chooseFolder()} disabled={disabled || job.busy}>Choose folder</button></div>
           <p className="folder-hint">Remembered for future downloads, including the terminal app.</p>
-          <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim()}>{pending && !job.busy ? 'Please wait…' : 'Convert to MP3'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
+          {job.status === 'ready' && job.metadata && <div className="video-preview"><p className="status-heading">Is this the video you want?</p><VideoDetails video={job.metadata} /><p className="status-detail">No audio has been downloaded. Review the details before continuing.</p></div>}
+          <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim()}>{pending && !job.busy ? 'Please wait…' : job.status === 'ready' ? 'Download MP3' : 'Preview video'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
         </form>
-        {(job.status !== 'idle' || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">
+        {((job.status !== 'idle' && job.status !== 'ready') || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">
           <p className="status-heading" role="status" aria-live="polite">{status}</p>
           {job.metadata && <VideoDetails video={job.metadata} />}
           {job.busy && <progress max={1} value={fraction ?? undefined} aria-label={status} />}

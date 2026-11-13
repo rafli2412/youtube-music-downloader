@@ -66,6 +66,29 @@ class DesktopJobsTests(unittest.TestCase):
         self.jobs.start(URL)
         self.assertTrue(self.engine.running.wait(3))
 
+    def test_preview_requires_confirmation_and_matching_video_before_downloading(self):
+        self.engine.preview = Mock(return_value={"title": "Example", "channel": "Test"})
+        api = DesktopApi(jobs=self.jobs)
+        api.preview_video(URL)
+        self.jobs.wait(3)
+        preview = self.jobs.snapshot()
+        self.assertEqual(preview["status"], "ready")
+        self.assertFalse(preview["busy"])
+        self.assertIsNone(preview["result"])
+        self.assertFalse(self.engine.running.is_set(), "Preview started downloading audio")
+        with self.assertRaisesRegex(RuntimeError, "Preview"):
+            api.start_download("https://youtu.be/abcdefghijk", preview["job_id"])
+        with self.assertRaisesRegex(RuntimeError, "Preview"):
+            api.start_download(URL, "stale-preview")
+        self.assertFalse(self.engine.running.is_set())
+        api.start_download(URL, preview["job_id"])
+        self.assertTrue(self.engine.running.wait(3))
+        self.engine.finish.set()
+        self.jobs.wait(3)
+        self.assertEqual(self.jobs.snapshot()["status"], "complete")
+        with self.assertRaisesRegex(RuntimeError, "Preview"):
+            api.start_download(URL, preview["job_id"])
+
     def test_metadata_is_retained_during_conversion_and_snapshots_are_isolated(self):
         metadata = {"title": "A song", "channel": "A channel", "duration": 187}
         self.jobs._progress(DownloadProgress("resolving", metadata=metadata))

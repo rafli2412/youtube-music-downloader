@@ -73,8 +73,10 @@ Windows PowerShell:
 
 1. Copy a video or song link from your browser and paste it into the app.
 2. Select **Choose folder** to set your download destination. The app remembers it.
-3. Select **Convert to MP3**.
-4. When finished, select **Open folder** to find the file, or **Convert another video** to clear the
+3. Select **Preview video** to load its title, channel, duration, publication date/time, and thumbnail.
+4. Check that it is the correct video, then select **Download MP3**. Editing the link clears the preview
+   and requires a new review. Previewing does not download the audio.
+5. When finished, select **Open folder** to find the file, or **Convert another video** to clear the
    previous link and result while keeping your selected folder.
 
 Use **Cancel** to stop a download. Closing the window during a job cancels it and waits for cleanup.

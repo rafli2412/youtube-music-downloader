@@ -10,7 +10,8 @@ export interface DesktopApi {
   get_app_info(): Promise<AppInfo>;
   get_settings(): Promise<Settings>;
   get_job(): Promise<JobState>;
-  start_download(url: string): Promise<JobState>;
+  preview_video(url: string): Promise<JobState>;
+  start_download(url: string, previewJobId: string): Promise<JobState>;
   cancel_download(): Promise<JobState>;
   choose_download_directory(): Promise<Settings>;
   open_download_folder(): Promise<{ ok: boolean }>;
@@ -88,7 +89,7 @@ export function connectDesktop(): Promise<AppInfo> {
 }
 
 export interface Settings { download_directory: string; }
-export type JobStatus = 'idle' | 'resolving' | 'downloading' | 'converting' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
+export type JobStatus = 'idle' | 'ready' | 'resolving' | 'downloading' | 'converting' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
 export interface VideoMetadata {
   title: string | null;
   channel: string | null;
@@ -134,6 +135,7 @@ export class DesktopClient {
 
 export function progressLabel(job: JobState): string {
   switch (job.status) {
+    case 'ready': return 'Check the video before downloading';
     case 'resolving': return 'Reading video information…';
     case 'downloading': return job.fraction === null ? 'Downloading audio…' : `Downloading audio · ${Math.round(job.fraction * 100)}%`;
     case 'converting': return 'Converting to MP3…';
