@@ -36,6 +36,7 @@ CloseApplications=yes
 RestartApplications=no
 UninstallDisplayIcon={app}\ytmp3-desktop.exe
 SetupLogging=yes
+SetupIconFile=..\icons\app.ico
 InfoBeforeFile=INSTALL.txt
 
 [Tasks]

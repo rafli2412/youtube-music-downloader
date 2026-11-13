@@ -41,6 +41,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="ytmp3-desktop",
+    icon=str(root / "packaging/icons/app.ico") if platform.system() == "Windows" else None,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -74,6 +75,7 @@ if platform.system() == "Darwin":
     app = BUNDLE(
         collection,
         name="YouTube Music Downloader.app",
+        icon=str(root / "packaging/icons/app.icns"),
         bundle_identifier="com.rafli2412.youtubemusicdownloader",
         version="0.1.0",
         info_plist={
