@@ -23,6 +23,7 @@ export function App() {
   const closingRef = useRef(false);
   const epoch = useRef(0);
   const polling = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const urlInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -103,6 +104,15 @@ export function App() {
     catch (failure) { if (!closingRef.current) setError(message(failure)); }
     finally { if (!closingRef.current) setPending(false); }
   };
+  const convertAnother = () => {
+    if (pending || job.busy || closingRef.current) return;
+    ++epoch.current;
+    if (polling.current) clearTimeout(polling.current);
+    setUrl('');
+    setJob(emptyJob);
+    setError(null);
+    urlInput.current?.focus();
+  };
   const disabled = !appInfo || !initialized || pending || closing;
   const fraction = job.status === 'downloading' ? job.fraction : null;
   const status = closing ? 'Closing after cleaning up…' : progressLabel(job);
@@ -118,7 +128,7 @@ export function App() {
         <div className="card-heading"><h2 id="download-heading">Start with a link</h2><span className="format-label">MP3</span></div>
         <form onSubmit={event => { event.preventDefault(); void start(); }}>
           <label htmlFor="video-url">Video or song link</label>
-          <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input id="video-url" type="url" required value={url} onChange={event => setUrl(event.target.value)} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
+          <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => setUrl(event.target.value)} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
           <div className="folder-row"><div className="folder-copy"><span className="folder-label">Save to</span><span id="download-directory" className="folder-path" title={directory ?? ''}>{directory ?? 'Your default download folder'}</span></div><button id="choose-folder" className="secondary-button" type="button" onClick={() => void chooseFolder()} disabled={disabled || job.busy}>Choose folder</button></div>
           <p className="folder-hint">Remembered for future downloads, including the terminal app.</p>
           <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim()}>{pending && !job.busy ? 'Please wait…' : 'Convert to MP3'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
@@ -126,7 +136,7 @@ export function App() {
         {(job.status !== 'idle' || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">
           <p className="status-heading" role="status" aria-live="polite">{status}</p>
           {job.busy && <progress max={1} value={fraction ?? undefined} aria-label={status} />}
-          {job.result && job.status === 'complete' && <div className="result"><p className="result-title">{job.result.title}</p><p className="result-path">{job.result.path}</p><button id="open-folder" type="button" className="secondary-button" onClick={() => void openFolder()} disabled={disabled}>Open folder</button></div>}
+          {job.result && job.status === 'complete' && <div className="result"><p className="result-title">{job.result.title}</p><p className="result-path">{job.result.path}</p><button id="open-folder" type="button" className="secondary-button" onClick={() => void openFolder()} disabled={disabled}>Open folder</button><button id="convert-another" type="button" className="secondary-button" onClick={convertAnother} disabled={disabled}>Convert another video</button></div>}
           {job.status === 'cancelled' && <p className="status-detail">Temporary files have been removed. Paste another link to try again.</p>}
           {job.error && <p className="error-message" role="alert">{job.error}</p>}
         </div>}
