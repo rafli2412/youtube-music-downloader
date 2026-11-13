@@ -33,3 +33,19 @@ for (const [input, expected] of cases) {
     assert.equal(suggestFilename(expected), expected, 'cleanup must be idempotent');
   });
 }
+
+const channelCases: [string, string | null, string][] = [
+  ['Hindia - Berdansalah, Karir Tak Ada Artinya (Official Lyric Video)', 'Hindia', 'Berdansalah, Karir Tak Ada Artinya'],
+  ['HINDIA - Song (Live)', ' hindia ', 'Song (Live)'],
+  ['FSTVLST - Apa Kabar Opus (Lirik Video)', 'GUWA AHMAD', 'FSTVLST - Apa Kabar Opus'],
+  ['Hindia feat. Artist - Song', 'Hindia', 'Hindia feat. Artist - Song'],
+  ['Hindia - Song', 'Hindia Music', 'Hindia - Song'],
+  ['Hindia - Song', null, 'Hindia - Song'],
+  ['Hindia', 'Hindia', 'Hindia'],
+  ['AC - DC — Song (Remix)', 'AC - DC', 'Song (Remix)'],
+];
+for (const [title, channel, expected] of channelCases) {
+  test(`matches artist prefix conservatively against channel: ${title} / ${channel}`, () => {
+    assert.equal(suggestFilename(title, channel), expected);
+  });
+}

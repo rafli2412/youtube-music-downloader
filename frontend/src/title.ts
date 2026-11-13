@@ -18,7 +18,18 @@ function cleanLabel(label: string): string {
   return text;
 }
 
-export function suggestFilename(title: string): string {
+function withoutMatchingArtist(title: string, channel?: string | null): string {
+  const normalized = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!channel?.trim()) return title;
+  for (const separator of title.matchAll(/\s+[-–—|:]\s+/g)) {
+    const artist = title.slice(0, separator.index);
+    const song = title.slice(separator.index! + separator[0].length).trim();
+    if (song && normalized(artist) === normalized(channel)) return song;
+  }
+  return title;
+}
+
+export function suggestFilename(title: string, channel?: string | null): string {
   let result = title.trim();
   for (let pass = 0; pass < 4; pass++) {
     const previous = result;
@@ -36,5 +47,5 @@ export function suggestFilename(title: string): string {
     if (result !== previous) result = result.replace(/\s+[-–—|•]\s*$/, '').trim();
     if (result === previous) break;
   }
-  return result || title.trim();
+  return withoutMatchingArtist(result || title.trim(), channel);
 }
