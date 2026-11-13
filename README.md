@@ -234,7 +234,8 @@ finished live-video links. Playlist/tracking parameters on a video are removed; 
 active/upcoming streams, and account-restricted content are rejected. YouTube may still deny a public
 video because it is unavailable in a region or because it requires verification.
 
-Files are named `Title [video-id].mp3`, with numbered suffixes for collisions. Temporary downloads and
+Files are named `Title.mp3`, then `Title (2).mp3`, `Title (3).mp3`, and so on for collisions.
+Titles are sanitized for filesystem compatibility. Temporary downloads and
 conversion outputs are cleaned after success, failure, or cancellation. Completed output is published
 without overwriting another file; once published, a late cancellation does not delete it. On macOS,
 safe atomic publication requires a filesystem supporting hard links (such as APFS); unsupported

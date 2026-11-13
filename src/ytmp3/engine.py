@@ -93,7 +93,7 @@ def safe_stem(title: str, video_id: str) -> str:
         r"(?:COM|LPT)[1-9¹²³]", device
     ):
         title = f"_{title}"
-    return f"{title} [{video_id}]"
+    return title
 
 
 def publish_mp3(source: Path, directory: Path, stem: str) -> Path:
