@@ -1,3 +1,4 @@
+import { suggestFilename } from './title';
 import { VideoDetails } from './VideoDetails';
 import { useEffect, useRef, useState } from 'react';
 import { connectDesktop, DesktopClient, progressLabel, VersionMismatchError } from './desktop';
@@ -74,6 +75,12 @@ export function App() {
     return () => { active = false; if (polling.current) clearTimeout(polling.current); };
   }, [job.busy, closing]);
 
+  useEffect(() => {
+    if (job.status === 'ready' && job.metadata?.title) {
+      setFilename(suggestFilename(job.metadata.title));
+    }
+  }, [job.status, job.job_id]);
+
   const start = async () => {
     if (!client.current || pending || job.busy || closingRef.current) return;
     ++epoch.current;
@@ -136,7 +143,7 @@ export function App() {
           <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => { ++epoch.current; setUrl(event.target.value); setFilename(''); setJob(emptyJob); setError(null); }} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
           <div className="folder-row"><div className="folder-copy"><span className="folder-label">Save to</span><span id="download-directory" className="folder-path" title={directory ?? ''}>{directory ?? 'Your default download folder'}</span></div><button id="choose-folder" className="secondary-button" type="button" onClick={() => void chooseFolder()} disabled={disabled || job.busy}>Choose folder</button></div>
           <p className="folder-hint">Remembered for future downloads, including the terminal app.</p>
-          {job.status === 'ready' && job.metadata && <div className="video-preview"><p className="status-heading">Is this the video you want?</p><VideoDetails video={job.metadata} /><label htmlFor="download-filename">Filename (optional)</label><div className="url-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Leave blank to use the video title. Duplicate names get a number.</p><p className="status-detail">No audio has been downloaded. Review the details before continuing.</p></div>}
+          {job.status === 'ready' && job.metadata && <div className="video-preview"><p className="status-heading">Is this the video you want?</p><VideoDetails video={job.metadata} /><label htmlFor="download-filename">Filename (optional)</label><div className="url-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><p className="status-detail">No audio has been downloaded. Review the details before continuing.</p></div>}
           <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim()}>{pending && !job.busy ? 'Please wait…' : job.status === 'ready' ? 'Download MP3' : 'Preview video'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
         </form>
         {((job.status !== 'idle' && job.status !== 'ready') || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">

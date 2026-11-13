@@ -75,7 +75,9 @@ Windows PowerShell:
 2. Select **Choose folder** to set your download destination. The app remembers it.
 3. Select **Preview video** to load its title, channel, duration, publication date/time, and thumbnail.
 4. Check that it is the correct video. Optionally enter a filename; leave it blank to use the video
-   title shown as the placeholder. The app adds `.mp3` and numbers duplicate names automatically.
+   title. A conservative English/Indonesian cleanup suggests an editable name, removing clear video,
+   lyrics, official, quality, subtitle, and promotional labels while preserving the artist and musical
+   versions such as remix, cover, and radio edit. The original YouTube title remains in the preview. The app adds `.mp3` and numbers duplicate names automatically.
    Select **Download MP3**. Editing the link clears the preview
    and requires a new review. Previewing does not download the audio.
 5. When finished, select **Open folder** to find the file, or **Convert another video** to clear the
