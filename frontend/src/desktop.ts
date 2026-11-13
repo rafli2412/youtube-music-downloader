@@ -11,7 +11,7 @@ export interface DesktopApi {
   get_settings(): Promise<Settings>;
   get_job(): Promise<JobState>;
   preview_video(url: string): Promise<JobState>;
-  start_download(url: string, previewJobId: string): Promise<JobState>;
+  start_download(url: string, previewJobId: string, filename?: string): Promise<JobState>;
   cancel_download(): Promise<JobState>;
   choose_download_directory(): Promise<Settings>;
   open_download_folder(): Promise<{ ok: boolean }>;

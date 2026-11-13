@@ -149,6 +149,19 @@ class EngineIntegrationTests(unittest.TestCase):
             next(i for i, event in enumerate(events) if event.stage == "downloading"),
         )
 
+    def test_custom_filename_is_safe_preserves_title_and_numbers_duplicates(self):
+        first = self.engine.download(URL, filename="My / Song.mp3")
+        second = self.engine.download(URL, filename="My / Song.mp3")
+        self.assertEqual(first.path.name, "My _ Song.mp3")
+        self.assertEqual(second.path.name, "My _ Song (2).mp3")
+        self.assertEqual(first.title, TITLE)
+        self.assertEqual(first.path.parent, self.destination)
+        self.assert_destination_has_only(first.path, second.path)
+
+    def test_blank_custom_filename_uses_video_title(self):
+        result = self.engine.download(URL, filename="   ")
+        self.assertEqual(result.path.name, f"{TITLE}.mp3")
+
     def test_repeated_download_keeps_existing_bytes_and_uses_new_filename(self):
         existing = self.destination / f"{TITLE}.mp3"
         existing.write_bytes(b"existing user content")

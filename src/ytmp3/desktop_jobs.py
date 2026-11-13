@@ -65,7 +65,7 @@ class DesktopJobs:
     def preview(self, url: str) -> dict[str, Any]:
         return self._start(url, preview=True)
 
-    def confirm(self, url: str, preview_job_id: str) -> dict[str, Any]:
+    def confirm(self, url: str, preview_job_id: str, filename: str | None = None) -> dict[str, Any]:
         normalized = normalize_youtube_url(url)
         with self._lock:
             if (
@@ -76,14 +76,14 @@ class DesktopJobs:
             ):
                 raise RuntimeError("Preview this video before downloading it.")
             metadata = copy.deepcopy(self._state["metadata"])
-            self.start(normalized)
+            self._start(normalized, preview=False, filename=filename)
             self._state["metadata"] = metadata
             return self.snapshot()
 
     def start(self, url: str) -> dict[str, Any]:
         return self._start(url, preview=False)
 
-    def _start(self, url: str, *, preview: bool) -> dict[str, Any]:
+    def _start(self, url: str, *, preview: bool, filename: str | None = None) -> dict[str, Any]:
         normalized = normalize_youtube_url(url)
         with self._lock:
             if self._closing:
@@ -107,7 +107,7 @@ class DesktopJobs:
             )
             self._thread = threading.Thread(
                 target=self._run,
-                args=(normalized, directory, preview),
+                args=(normalized, directory, preview, filename),
                 name="ytmp3-desktop-job",
             )
             try:
@@ -156,7 +156,9 @@ class DesktopJobs:
                 fraction=event.fraction,
             )
 
-    def _run(self, url: str, directory: Any, preview: bool = False) -> None:
+    def _run(
+        self, url: str, directory: Any, preview: bool = False, filename: str | None = None
+    ) -> None:
         try:
             if preview:
                 metadata = self._engine.preview(
@@ -172,6 +174,7 @@ class DesktopJobs:
                 directory=directory,
                 on_progress=self._progress,
                 cancel=self._cancel,
+                **({"filename": filename} if filename else {}),
             )
             with self._lock:
                 self._state.update(

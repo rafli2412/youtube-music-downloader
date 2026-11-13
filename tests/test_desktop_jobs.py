@@ -89,6 +89,19 @@ class DesktopJobsTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Preview"):
             api.start_download(URL, preview["job_id"])
 
+    def test_confirm_passes_optional_filename_to_the_engine(self):
+        self.engine.preview = Mock(return_value={"title": "Example"})
+        self.engine.download = Mock(
+            return_value=DownloadResult(self.root / "Custom.mp3", "Example", "jNQXAC9IVRw")
+        )
+        api = DesktopApi(jobs=self.jobs)
+        api.preview_video(URL)
+        self.jobs.wait(3)
+        api.start_download(URL, self.jobs.snapshot()["job_id"], "Custom")
+        self.jobs.wait(3)
+        self.assertEqual(self.engine.download.call_args.kwargs["filename"], "Custom")
+        self.assertEqual(self.jobs.snapshot()["status"], "complete")
+
     def test_metadata_is_retained_during_conversion_and_snapshots_are_isolated(self):
         metadata = {"title": "A song", "channel": "A channel", "duration": 187}
         self.jobs._progress(DownloadProgress("resolving", metadata=metadata))

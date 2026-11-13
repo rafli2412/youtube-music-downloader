@@ -46,9 +46,11 @@ class DesktopApi:
         with self._dialog_lock:
             return self._jobs.preview(url)
 
-    def start_download(self, url: str, preview_job_id: str) -> dict[str, Any]:
+    def start_download(
+        self, url: str, preview_job_id: str, filename: str | None = None
+    ) -> dict[str, Any]:
         with self._dialog_lock:
-            return self._jobs.confirm(url, preview_job_id)
+            return self._jobs.confirm(url, preview_job_id, filename)
 
     def cancel_download(self) -> dict[str, Any]:
         return self._jobs.cancel()

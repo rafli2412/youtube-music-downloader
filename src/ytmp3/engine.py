@@ -343,6 +343,7 @@ class DownloadEngine:
         *,
         on_progress: Callable[[DownloadProgress], None] | None = None,
         cancel: threading.Event | None = None,
+        filename: str | None = None,
     ) -> DownloadResult:
         if not self._lock.acquire(blocking=False):
             raise DownloadBusy("A download is already running.")
@@ -353,6 +354,11 @@ class DownloadEngine:
                 on_progress(event)
 
         try:
+            if filename is not None and not isinstance(filename, str):
+                raise DownloadError("The filename must be text.")
+            custom_name = (filename or "").strip()
+            if custom_name.lower().endswith(".mp3"):
+                custom_name = custom_name[:-4].strip()
             normalized = normalize_youtube_url(url)
             self._check_cancel(cancellation)
             destination = prepare_download_directory(
@@ -372,7 +378,7 @@ class DownloadEngine:
                 self._check_cancel(cancellation)
                 notify(DownloadProgress("converting", metadata=item.get("metadata")))
                 mp3 = self._convert(source, temporary, cancellation)
-                stem = safe_stem(item["title"], item["id"])
+                stem = safe_stem(custom_name or item["title"], item["id"])
                 self._check_cancel(cancellation)
                 result = DownloadResult(
                     publish_mp3(mp3, destination, stem), item["title"], item["id"]
