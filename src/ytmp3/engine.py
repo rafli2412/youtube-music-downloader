@@ -120,6 +120,27 @@ def publish_mp3(source: Path, directory: Path, stem: str) -> Path:
     raise DownloadError("Too many files with the same name; choose another download folder.")
 
 
+def _extract_audio(url: str, options: dict[str, Any]) -> tuple[dict[str, Any], Path]:
+    import yt_dlp
+
+    for attempt in range(2):
+        try:
+            with yt_dlp.YoutubeDL(options) as downloader:
+                info = downloader.extract_info(url, download=True)
+                if not info:
+                    raise UnsupportedContent("This item is unavailable or cannot be downloaded.")
+                validate_content(info)
+                return info, Path(downloader.prepare_filename(info))
+        except yt_dlp.utils.DownloadError as error:
+            message = str(error).lower()
+            if attempt or not any(text in message for text in ("not a bot", "sign in to confirm")):
+                raise
+            # One fresh guest session after a pause; persistent verification is reported.
+            # The parent can cancel this isolated worker during the wait.
+            time.sleep(10)
+    raise AssertionError("Unreachable retrieval state")
+
+
 def _download_worker(connection: Any, url: str, directory: str, deno: str) -> None:
     """No GUI imports or inherited yt-dlp state in this child process."""
     try:
@@ -129,7 +150,6 @@ def _download_worker(connection: Any, url: str, directory: str, deno: str) -> No
             os.setsid()
         os.environ["YTDLP_NO_PLUGINS"] = "1"
         os.environ["DENO_NO_UPDATE_CHECK"] = "1"
-        import yt_dlp
 
         # Only the parent reports failures. Direct child logs could duplicate errors
         # or bypass the terminal interface's control-character sanitization.
@@ -181,12 +201,7 @@ def _download_worker(connection: Any, url: str, directory: str, deno: str) -> No
             "match_filter": content_filter,
             "extractor_args": {"youtube": {"player_client": ["default"]}},
         }
-        with yt_dlp.YoutubeDL(options) as downloader:
-            info = downloader.extract_info(url, download=True)
-            if not info:
-                raise UnsupportedContent("This item is unavailable or cannot be downloaded.")
-            validate_content(info)
-            source = Path(downloader.prepare_filename(info))
+        info, source = _extract_audio(url, options)
         connection.send(
             {
                 "kind": "result",

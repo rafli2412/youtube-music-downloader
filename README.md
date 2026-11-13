@@ -169,6 +169,8 @@ bundled native binaries against the app's declared minimum OS.
   account-restricted content are rejected. A video link containing playlist parameters downloads
   only that video.
 - YouTube may request verification or deny a public video on some networks or in some regions.
+  For a verification rejection, the app waits 10 seconds and retries once with a fresh guest session.
+  Cancellation remains available during the wait. Persistent verification is reported as an error.
   Try another public link or retry later. The app does not support signing in or importing cookies.
 - If a destination cannot be written, choose a local writable folder. Mac destinations must support
   hard links, such as an APFS volume.
