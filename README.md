@@ -88,7 +88,8 @@ Windows PowerShell:
    `Music`, `Records`, or `Channel`).
    Other artist prefixes stay. The original YouTube
    title remains in the preview. Use **Restore original** beside the filename to undo the suggestion
-   or your edits. Ambiguous song names such as “Lyrics” and “Video” are preserved, and running cleanup
+   or your edits. The button then becomes **Use parsed title** to switch back to the suggestion.
+   Ambiguous song names such as “Lyrics” and “Video” are preserved, and running cleanup
    again leaves the suggestion unchanged. The app adds `.mp3` and numbers duplicate names automatically.
    Select **Download MP3**. Editing the link clears the preview
    and requires a new review. Previewing does not download the audio.
