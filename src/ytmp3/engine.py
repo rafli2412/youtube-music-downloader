@@ -122,8 +122,16 @@ def publish_mp3(source: Path, directory: Path, stem: str) -> Path:
 
 
 def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
+    def text(value: Any) -> str | None:
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    artist = text(info.get("artist"))
+    if not artist and isinstance(info.get("artists"), list):
+        artist = ", ".join(value for item in info["artists"] if (value := text(item))) or None
     return {
         "title": info.get("title"),
+        "track": text(info.get("track")),
+        "artist": artist,
         "channel": info.get("channel") or info.get("uploader"),
         "duration": info.get("duration"),
         "published_date": info.get("upload_date"),

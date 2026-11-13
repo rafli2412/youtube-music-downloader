@@ -73,9 +73,24 @@ Windows PowerShell:
 
 1. Copy a video or song link from your browser and paste it into the app.
 2. Select **Choose folder** to set your download destination. The app remembers it.
-3. Select **Preview video** to load its title, channel, duration, publication date/time, and thumbnail.
+3. Select **Preview video** to load its title, track, artist, channel, duration, publication date/time,
+   and thumbnail. Track and artist show **Not available** when YouTube does not provide them.
 4. Check that it is the correct video. Optionally enter a filename; leave it blank to use the video
-   title shown as the placeholder. The app adds `.mp3` and numbers duplicate names automatically.
+   title. When both track and artist metadata are available, they supply the suggested name; otherwise
+   the app uses conservative English/Indonesian title cleanup. If music metadata omits remix, cover,
+   live, or version details found in the video title, title cleanup is used to preserve those details.
+   Featured artists and named remixer credits are also preserved: incomplete music metadata falls
+   back to the cleaned video title rather than dropping names.
+   The cleanup removes clear video,
+   lyrics, official, quality, subtitle, and promotional labels while preserving the artist and musical
+   versions such as remix, cover, and radio edit. A leading artist is omitted when it matches the
+   channel name (ignoring case, extra spaces, and common channel labels such as `- Topic`, `Official`, `VEVO` (including `HindiaVEVO`),
+   `Music`, `Records`, or `Channel`).
+   Other artist prefixes stay. The original YouTube
+   title remains in the preview. Use **Restore original** beside the filename to undo the suggestion
+   or your edits. The button then becomes **Use parsed title** to switch back to the suggestion.
+   Ambiguous song names such as “Lyrics” and “Video” are preserved, and running cleanup
+   again leaves the suggestion unchanged. The app adds `.mp3` and numbers duplicate names automatically.
    Select **Download MP3**. Editing the link clears the preview
    and requires a new review. Previewing does not download the audio.
 5. When finished, select **Open folder** to find the file, or **Convert another video** to clear the
