@@ -81,7 +81,9 @@ Windows PowerShell:
    channel name (ignoring case, extra spaces, and common channel labels such as `- Topic`, `Official`, `VEVO` (including `HindiaVEVO`),
    `Music`, `Records`, or `Channel`).
    Other artist prefixes stay. The original YouTube
-   title remains in the preview. The app adds `.mp3` and numbers duplicate names automatically.
+   title remains in the preview. Use **Restore original** beside the filename to undo the suggestion
+   or your edits. Ambiguous song names such as “Lyrics” and “Video” are preserved, and running cleanup
+   again leaves the suggestion unchanged. The app adds `.mp3` and numbers duplicate names automatically.
    Select **Download MP3**. Editing the link clears the preview
    and requires a new review. Previewing does not download the audio.
 5. When finished, select **Open folder** to find the file, or **Convert another video** to clear the

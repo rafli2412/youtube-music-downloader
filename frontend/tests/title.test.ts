@@ -72,5 +72,38 @@ const channelCases: [string, string | null, string][] = [
 for (const [title, channel, expected] of channelCases) {
   test(`matches artist prefix conservatively against channel: ${title} / ${channel}`, () => {
     assert.equal(suggestFilename(title, channel), expected);
+    assert.equal(suggestFilename(expected, channel), expected, 'channel cleanup must be stable');
   });
 }
+
+const protectedTitles: [string, string | null, string][] = [
+  ['Artist - Lyrics (Official Video)', null, 'Artist - Lyrics'],
+  ['Artist - Video (Official Music Video)', null, 'Artist - Video'],
+  ['Artist - Official Music Video', null, 'Artist - Official Music Video'],
+  ['Artist - (Video) [Official Video]', null, 'Artist - (Video)'],
+  ['Artist - Lyrics - HD', 'Artist', 'Lyrics'],
+  ['Artist - Video [Lyrics]', 'ArtistVEVO', 'Video'],
+  ['Hindia - Hindia - Song', 'Hindia', 'Hindia - Hindia - Song'],
+  ['Hindia - Hindia - Song [Official Video]', 'Hindia', 'Hindia - Hindia - Song'],
+];
+for (const [title, channel, expected] of protectedTitles) {
+  test(`protects actual song text and stays stable: ${title}`, () => {
+    assert.equal(suggestFilename(title, channel), expected);
+    assert.equal(suggestFilename(expected, channel), expected);
+  });
+}
+
+test('cleanup remains stable across artist, title, label, and channel combinations', () => {
+  for (const artist of ['Hindia', 'Artist', 'AC - DC']) {
+    for (const song of ['Song', 'Lyrics', 'Video', '(Lyrics)', 'Hindia - Song', 'Artist - Song', 'Song - Lyrics', 'Official Music Video', 'Song (Live)']) {
+      for (const tag of ['', ' (Official Video)', ' [Lyrics]', ' - HD', ' (Official Video (HD))']) {
+        for (const channel of [null, 'Hindia', 'Artist', 'AC - DC', 'ArtistVEVO']) {
+          const title = `${artist} - ${song}${tag}`;
+          const suggestion = suggestFilename(title, channel);
+          assert.equal(suggestFilename(suggestion, channel), suggestion, `${title} / ${channel}`);
+          assert.ok(suggestion.trim(), 'suggestions must never be empty');
+        }
+      }
+    }
+  }
+});

@@ -47,26 +47,41 @@ function withoutMatchingArtist(title: string, channel?: string | null): string {
   for (const separator of title.matchAll(/\s+[-–—|:]\s+/g)) {
     const artist = title.slice(0, separator.index);
     const song = title.slice(separator.index! + separator[0].length).trim();
-    if (song && channelNames.has(normalized(artist))) return song;
+    if (song && channelNames.has(normalized(artist))) {
+      // A repeated artist-looking prefix may actually be part of the song title.
+      // Keep this ambiguous structure instead of stripping another part on each call.
+      for (const nested of song.matchAll(/\s+[-–—|:]\s+/g)) {
+        if (channelNames.has(normalized(song.slice(0, nested.index)))) return title;
+      }
+      return song;
+    }
   }
   return title;
 }
 
+function hasSongText(value: string): boolean {
+  const separator = /\s+[-–—|:](?:\s+|$)/.exec(value);
+  return (separator ? value.slice(separator.index + separator[0].length) : value).trim().length > 0;
+}
+
 export function suggestFilename(title: string, channel?: string | null): string {
   let result = title.trim();
-  for (let pass = 0; pass < 4; pass++) {
+  while (true) {
     const previous = result;
-    result = result.replace(/\(([^()[\]{}]*)\)|\[([^()[\]{}]*)\]|\{([^()[\]{}]*)\}/g, (group, round, square, curly) => {
+    result = result.replace(/\(([^()[\]{}]*)\)|\[([^()[\]{}]*)\]|\{([^()[\]{}]*)\}/g, (group, round, square, curly, offset) => {
       const original = round ?? square ?? curly;
       const cleaned = cleanLabel(original);
+      // A label-like group at the start of the song might be its actual name.
+      if (!cleaned && !hasSongText(result.slice(0, offset))) return group;
       return cleaned ? group[0] + cleaned + group[group.length - 1] : '';
     });
     // Strip only trailing labelled segments, retaining artist and song separators.
     const pieces = result.split(/(\s+[-–—|•]\s+)/);
-    while (pieces.length > 2 && cleanLabel(pieces[pieces.length - 1]) === '') pieces.splice(-2);
+    while (pieces.length > 4 && cleanLabel(pieces[pieces.length - 1]) === '') pieces.splice(-2);
     result = pieces.join('');
     // Clear, multiword presentation suffixes are safe even without brackets.
-    result = result.replace(/\s+(?:official\s+(?:music\s+)?(?:video|audio|visuali[sz]er)|video\s+(?:klip\s+)?resmi|lirik\s+video|video\s+lirik)\s*$/i, '').replace(/\s+/g, ' ').trim();
+    const withoutSuffix = result.replace(/\s+(?:official\s+(?:music\s+)?(?:video|audio|visuali[sz]er)|video\s+(?:klip\s+)?resmi|lirik\s+video|video\s+lirik)\s*$/i, '').replace(/\s+/g, ' ').trim();
+    if (hasSongText(withoutSuffix)) result = withoutSuffix;
     if (result !== previous) result = result.replace(/\s+[-–—|•]\s*$/, '').trim();
     if (result === previous) break;
   }
