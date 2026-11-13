@@ -57,6 +57,7 @@ class DownloadProgress:
     stage: str
     downloaded_bytes: int = 0
     total_bytes: int | None = None
+    metadata: dict[str, Any] | None = None
 
     @property
     def fraction(self) -> float | None:
@@ -120,6 +121,17 @@ def publish_mp3(source: Path, directory: Path, stem: str) -> Path:
     raise DownloadError("Too many files with the same name; choose another download folder.")
 
 
+def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "title": info.get("title"),
+        "channel": info.get("channel") or info.get("uploader"),
+        "duration": info.get("duration"),
+        "published_date": info.get("upload_date"),
+        "published_timestamp": info.get("timestamp"),
+        "thumbnail": info.get("thumbnail"),
+    }
+
+
 def _extract_audio(url: str, options: dict[str, Any]) -> tuple[dict[str, Any], Path]:
     import yt_dlp
 
@@ -158,6 +170,7 @@ def _download_worker(connection: Any, url: str, directory: str, deno: str) -> No
         logger.propagate = False
 
         last_progress = 0.0
+        last_metadata = None
 
         def progress(data: dict[str, Any]) -> None:
             nonlocal last_progress
@@ -175,8 +188,13 @@ def _download_worker(connection: Any, url: str, directory: str, deno: str) -> No
             )
 
         def content_filter(info: dict[str, Any], *, incomplete: bool = False) -> None:
+            nonlocal last_metadata
             if not incomplete:
                 validate_content(info)
+                metadata = video_metadata(info)
+                if metadata["title"] and metadata != last_metadata:
+                    connection.send({"kind": "metadata", "metadata": metadata})
+                    last_metadata = metadata
 
         options = {
             "format": "bestaudio/best",
@@ -208,6 +226,7 @@ def _download_worker(connection: Any, url: str, directory: str, deno: str) -> No
                 "source": str(source),
                 "id": info["id"],
                 "title": info.get("title") or info["id"],
+                "metadata": video_metadata(info),
             }
         )
     except Exception as error:
@@ -314,7 +333,7 @@ class DownloadEngine:
                 if source.resolve().parent != temporary.resolve() or not source.is_file():
                     raise DownloadError("The audio download did not produce a complete file.")
                 self._check_cancel(cancellation)
-                notify(DownloadProgress("converting"))
+                notify(DownloadProgress("converting", metadata=item.get("metadata")))
                 mp3 = self._convert(source, temporary, cancellation)
                 stem = safe_stem(item["title"], item["id"])
                 self._check_cancel(cancellation)
@@ -362,7 +381,9 @@ class DownloadEngine:
                         event = receive.recv()
                     except EOFError as error:
                         raise DownloadError("The download process stopped unexpectedly.") from error
-                    if event["kind"] == "progress":
+                    if event["kind"] == "metadata":
+                        notify(DownloadProgress("resolving", metadata=event["metadata"]))
+                    elif event["kind"] == "progress":
                         notify(DownloadProgress("downloading", event["downloaded"], event["total"]))
                     elif event["kind"] == "result":
                         process.join(timeout=2)

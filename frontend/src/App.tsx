@@ -1,3 +1,4 @@
+import { VideoDetails } from './VideoDetails';
 import { useEffect, useRef, useState } from 'react';
 import { connectDesktop, DesktopClient, progressLabel, VersionMismatchError } from './desktop';
 import type { AppInfo, JobState } from './desktop';
@@ -135,6 +136,7 @@ export function App() {
         </form>
         {(job.status !== 'idle' || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">
           <p className="status-heading" role="status" aria-live="polite">{status}</p>
+          {job.metadata && <VideoDetails video={job.metadata} />}
           {job.busy && <progress max={1} value={fraction ?? undefined} aria-label={status} />}
           {job.result && job.status === 'complete' && <div className="result"><p className="result-title">{job.result.title}</p><p className="result-path">{job.result.path}</p><button id="open-folder" type="button" className="secondary-button" onClick={() => void openFolder()} disabled={disabled}>Open folder</button><button id="convert-another" type="button" className="secondary-button" onClick={convertAnother} disabled={disabled}>Convert another video</button></div>}
           {job.status === 'cancelled' && <p className="status-detail">Temporary files have been removed. Paste another link to try again.</p>}

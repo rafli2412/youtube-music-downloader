@@ -66,6 +66,16 @@ class DesktopJobsTests(unittest.TestCase):
         self.jobs.start(URL)
         self.assertTrue(self.engine.running.wait(3))
 
+    def test_metadata_is_retained_during_conversion_and_snapshots_are_isolated(self):
+        metadata = {"title": "A song", "channel": "A channel", "duration": 187}
+        self.jobs._progress(DownloadProgress("resolving", metadata=metadata))
+        metadata["title"] = "Changed outside the controller"
+        self.jobs._progress(DownloadProgress("converting"))
+        snapshot = self.jobs.snapshot()
+        self.assertEqual(snapshot["metadata"]["title"], "A song")
+        snapshot["metadata"]["title"] = "Changed snapshot"
+        self.assertEqual(self.jobs.snapshot()["metadata"]["title"], "A song")
+
     def test_progress_snapshot_is_isolated_and_result_is_published_after_completion(self):
         self.start()
         state = self.jobs.snapshot()

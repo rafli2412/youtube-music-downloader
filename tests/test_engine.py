@@ -53,6 +53,22 @@ def _wave_worker(connection, url, directory, deno) -> None:
         connection.close()
 
 
+def _metadata_worker(connection, url, directory, deno) -> None:
+    connection.send(
+        {
+            "kind": "metadata",
+            "metadata": {
+                "title": TITLE,
+                "channel": "Example channel",
+                "duration": 187,
+                "published_date": "20260102",
+                "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+            },
+        }
+    )
+    _wave_worker(connection, url, directory, deno)
+
+
 def _error_worker(connection, url, directory, deno) -> None:
     _start_session()
     connection.send({"kind": "error", "message": "Content unavailable", "unsupported": False})
@@ -119,6 +135,19 @@ class EngineIntegrationTests(unittest.TestCase):
             ["resolving", "downloading", "converting", "complete"],
         )
         self.assertEqual(events[1].fraction, 1)
+
+    def test_metadata_arrives_before_download_and_conversion(self):
+        events = []
+        engine = DownloadEngine(self.settings, _worker_target=_metadata_worker)
+        engine.download(URL, on_progress=events.append)
+        metadata_events = [event for event in events if event.metadata]
+        self.assertEqual(len(metadata_events), 1)
+        self.assertEqual(metadata_events[0].metadata["channel"], "Example channel")
+        self.assertEqual(metadata_events[0].metadata["published_date"], "20260102")
+        self.assertLess(
+            events.index(metadata_events[0]),
+            next(i for i, event in enumerate(events) if event.stage == "downloading"),
+        )
 
     def test_repeated_download_keeps_existing_bytes_and_uses_new_filename(self):
         existing = self.destination / f"{TITLE}.mp3"

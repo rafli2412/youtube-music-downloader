@@ -7,6 +7,8 @@ Use the desktop window or run downloads from your terminal.
 - Choose a download folder once and reuse it across the desktop and terminal apps.
 - Save files as `Video Title.mp3`, with `Video Title (2).mp3`, `(3)`, and so on when names repeat.
 - Follow download progress, cancel a download, and open the destination folder.
+- See the video title, channel, duration, publication date/time, and thumbnail while downloading
+  and converting. Exact publication time is shown when YouTube provides it; otherwise the date is used.
 - Select **Convert another video** after completion to clear the link and start again.
 
 Packaged apps include Python, FFmpeg/ffprobe, and Deno. You do not need to install these tools or Node.js

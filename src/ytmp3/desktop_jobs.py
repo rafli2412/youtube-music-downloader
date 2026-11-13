@@ -44,6 +44,7 @@ class DesktopJobs:
             "directory": None,
             "result": None,
             "error": None,
+            "metadata": None,
         }
 
     def snapshot(self) -> dict[str, Any]:
@@ -78,6 +79,7 @@ class DesktopJobs:
                 fraction=None,
                 directory=str(directory),
                 result=None,
+                metadata=None,
                 error=None,
             )
             self._thread = threading.Thread(
@@ -119,6 +121,8 @@ class DesktopJobs:
 
     def _progress(self, event: DownloadProgress) -> None:
         with self._lock:
+            if event.metadata is not None:
+                self._state["metadata"] = copy.deepcopy(event.metadata)
             # Final status is decided by the engine's result/exception after cleanup.
             if event.stage in {"complete", "cancelled", "failed"}:
                 return

@@ -89,7 +89,17 @@ export function connectDesktop(): Promise<AppInfo> {
 
 export interface Settings { download_directory: string; }
 export type JobStatus = 'idle' | 'resolving' | 'downloading' | 'converting' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
+export interface VideoMetadata {
+  title: string | null;
+  channel: string | null;
+  duration: number | null;
+  published_date: string | null;
+  published_timestamp?: number | null;
+  thumbnail: string | null;
+}
+
 export interface JobState {
+  metadata?: VideoMetadata | null;
   job_id: string | null;
   status: JobStatus;
   busy: boolean;
