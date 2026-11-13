@@ -78,7 +78,8 @@ Windows PowerShell:
    title. A conservative English/Indonesian cleanup suggests an editable name, removing clear video,
    lyrics, official, quality, subtitle, and promotional labels while preserving the artist and musical
    versions such as remix, cover, and radio edit. A leading artist is omitted when it matches the
-   channel name (ignoring case and extra spaces). Other artist prefixes stay. The original YouTube
+   channel name (ignoring case, extra spaces, and channel labels such as `- Topic` or `Official`).
+   Other artist prefixes stay. The original YouTube
    title remains in the preview. The app adds `.mp3` and numbers duplicate names automatically.
    Select **Download MP3**. Editing the link clears the preview
    and requires a new review. Previewing does not download the audio.

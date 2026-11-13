@@ -21,10 +21,20 @@ function cleanLabel(label: string): string {
 function withoutMatchingArtist(title: string, channel?: string | null): string {
   const normalized = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
   if (!channel?.trim()) return title;
+  const channelNames = new Set([normalized(channel)]);
+  let channelName = normalized(channel);
+  for (let pass = 0; pass < 4; pass++) {
+    const cleaned = channelName
+      .replace(/(?:\s*[-–—]\s*topic|\s*[-–—]\s*official|\s+official|\s*[([]official[)\]])$/, '')
+      .replace(/^official\s+/, '').trim();
+    if (!cleaned || cleaned === channelName) break;
+    channelNames.add(cleaned);
+    channelName = cleaned;
+  }
   for (const separator of title.matchAll(/\s+[-–—|:]\s+/g)) {
     const artist = title.slice(0, separator.index);
     const song = title.slice(separator.index! + separator[0].length).trim();
-    if (song && normalized(artist) === normalized(channel)) return song;
+    if (song && channelNames.has(normalized(artist))) return song;
   }
   return title;
 }
