@@ -93,6 +93,7 @@ class EngineIntegrationTests(unittest.TestCase):
         self.assertEqual(result.path.parent, self.destination)
         self.assertEqual(result.title, TITLE)
         self.assertEqual(result.video_id, "dQw4w9WgXcQ")
+        self.assertEqual(result.path.name, f"{TITLE}.mp3")
         self.assert_destination_has_only(result.path)
         options = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
         probe = subprocess.run(
@@ -120,17 +121,22 @@ class EngineIntegrationTests(unittest.TestCase):
         self.assertEqual(events[1].fraction, 1)
 
     def test_repeated_download_keeps_existing_bytes_and_uses_new_filename(self):
-        existing = self.destination / f"{TITLE} [dQw4w9WgXcQ].mp3"
+        existing = self.destination / f"{TITLE}.mp3"
         existing.write_bytes(b"existing user content")
         result = self.engine.download(URL)
         self.assertEqual(existing.read_bytes(), b"existing user content")
-        self.assertEqual(result.path.name, f"{TITLE} [dQw4w9WgXcQ] (2).mp3")
+        self.assertEqual(result.path.name, f"{TITLE} (2).mp3")
         self.assert_destination_has_only(existing, result.path)
+        third = self.engine.download(URL)
+        self.assertEqual(third.path.name, f"{TITLE} (3).mp3")
+        self.assertEqual(existing.read_bytes(), b"existing user content")
+        self.assert_destination_has_only(existing, result.path, third.path)
 
     def test_unicode_and_long_titles_are_saved_as_portable_bounded_names(self):
         result = self.engine.download("https://music.youtube.com/watch?v=abcdefghijk")
         self.assertIn("音楽", result.path.name)
-        self.assertTrue(result.path.name.endswith("[abcdefghijk].mp3"))
+        self.assertTrue(result.path.name.endswith(".mp3"))
+        self.assertNotIn("abcdefghijk", result.path.name)
         self.assertLess(len(result.path.name.encode("utf-8")), 200)
         self.assertFalse(any(character in result.path.name for character in '<>:"/\\|?*'))
         self.assert_destination_has_only(result.path)

@@ -93,7 +93,7 @@ def safe_stem(title: str, video_id: str) -> str:
         r"(?:COM|LPT)[1-9¹²³]", device
     ):
         title = f"_{title}"
-    return f"{title} [{video_id}]"
+    return title
 
 
 def publish_mp3(source: Path, directory: Path, stem: str) -> Path:
@@ -422,6 +422,7 @@ class DownloadEngine:
     def _execute_tool(
         self, name: str, arguments: list[str], directory: Path, cancel: threading.Event
     ) -> str:
+        self._check_cancel(cancel)
         options: dict[str, Any] = {}
         if os.name == "nt":
             options["creationflags"] = subprocess.CREATE_NO_WINDOW

@@ -2,7 +2,7 @@
 
 A terminal-first, personal-use YouTube / YouTube Music to MP3 app with a React desktop companion.
 
-## Current status — phase 5 of 6
+## Current status — phase 6 of 6
 
 The shared Python engine now downloads one public YouTube / YouTube Music video and converts its audio
 to a verified 192 kbps MP3. It supports progress callbacks, cancellation, saved folder settings, and
@@ -15,10 +15,10 @@ The terminal interface now supports direct URL downloads, interactive prompting,
 per-download folder overrides, progress, readable errors, and Ctrl+C cancellation. Native packages
 include both a console launcher and the desktop launcher, sharing the same runtime dependencies.
 
-Targets: **Windows x64** and **macOS Apple Silicon (arm64)**. Local Apple Silicon packaging is checked
-with the scripts below; Windows packaging is prepared in GitHub Actions and must pass there before
-being considered verified. Initial macOS target is macOS 13 or newer; a packaged build must also be
-tested on its intended minimum OS version.
+Targets: **Windows x64** and **macOS Apple Silicon (arm64)**. Native builds and isolated installer
+checks have passed on both targets. The Mac package declares macOS 13 or newer and its bundled native
+code is checked against that minimum. Clean-machine, minimum-OS, and manual Windows desktop acceptance
+checks remain; see the validation record below.
 
 Local proof on 2026-11-12 (Apple Silicon, Python 3.11.18): engine integration tests use real spawned
 workers and FFmpeg/ffprobe with synthetic audio. A separate live check downloaded and converted the
@@ -34,10 +34,23 @@ results, Open folder, failure, cancellation, and quitting during a job. These us
 fixtures in an isolated session. A live GUI check encountered YouTube's verification requirement;
 the CLI received the same response on this connection. The app does not import cookies or sign in.
 
+Phase 6 repeats the local packaged CLI, offline conversion, native-window/bridge, DMG installation,
+and checksum checks. All 77 Python tests and 9 frontend tests pass locally. Windows CI verifies the
+installer, both installed launchers, PATH preservation, and removal. The Mac package is rebuilt with
+a compatible Python 3.13 runtime; archive and DMG creation now reject bundled binaries requiring a
+newer OS than the app declares.
+Cancellation is checked before starting an audio tool, avoiding unnecessary converter launches and
+temporary-file races when cancellation arrives as conversion begins.
+See the [validation record](docs/validation.md) for evidence and the remaining clean-machine,
+minimum-OS, Windows desktop, and live-network acceptance checks.
+
 ## Development setup
 
 Use Python 3.11–3.15 and Node.js 22.12 or newer. CI uses Python 3.13 and Node 22; the initial local
 packaging proof uses Python 3.11. These tools are needed for development, not by packaged app users.
+For Mac packaging, use a Python distribution and compiled dependencies built for macOS 13 or older.
+The final local package uses Python 3.13.18; the build audits every bundled native binary's deployment
+target before producing an archive or DMG.
 
 macOS:
 
@@ -181,7 +194,8 @@ reported without forcing one. WebView2 is shared with other apps and remains aft
 Uninstall through Windows Settings > Apps. The uninstaller removes only the app-owned PATH entry,
 preserving pre-existing entries and entries added later. Downloaded files and app settings remain.
 This personal-use installer is unsigned; public distribution needs an appropriately signed build.
-Windows installer compilation/execution must be verified on Windows; it has not been run on this Mac.
+Windows CI compiles the installer and verifies isolated installation, both launchers, PATH ownership,
+and removal. Manual Windows desktop and clean-machine checks remain open.
 
 ## Exercise the shared engine
 
@@ -220,7 +234,8 @@ finished live-video links. Playlist/tracking parameters on a video are removed; 
 active/upcoming streams, and account-restricted content are rejected. YouTube may still deny a public
 video because it is unavailable in a region or because it requires verification.
 
-Files are named `Title [video-id].mp3`, with numbered suffixes for collisions. Temporary downloads and
+Files are named `Title.mp3`, then `Title (2).mp3`, `Title (3).mp3`, and so on for collisions.
+Titles are sanitized for filesystem compatibility. Temporary downloads and
 conversion outputs are cleaned after success, failure, or cancellation. Completed output is published
 without overwriting another file; once published, a late cancellation does not delete it. On macOS,
 safe atomic publication requires a filesystem supporting hard links (such as APFS); unsupported
@@ -268,6 +283,11 @@ The GUI check additionally
 waits for the actual React-to-Python round trip in a native window. These checks on a development
 machine do **not** replace final testing on a clean computer without Python installed.
 
+On Mac, both the archive build and DMG build audit all bundled Mach-O files against
+`LSMinimumSystemVersion`. `build/reports/macos-compatibility.json` records the result. A Python runtime
+compiled for a newer OS must be replaced with a compatible build; changing the app's plist alone
+cannot make its dependencies work on older systems. This static audit complements minimum-OS testing.
+
 On Windows, `build_installers.py` uses Inno Setup 7 or 6.3+ (the GitHub runner includes Inno Setup).
 It locates `ISCC.exe` on PATH or in the standard Inno Setup folders; pass `--iscc <path>` to override.
 The bootstrapper is downloaded from Microsoft at build time using the committed SHA-256 pin in
@@ -283,8 +303,8 @@ python scripts/verify_macos_install.py
 ```
 
 ```powershell
-# Windows: disposable user/CI account, guarded against replacing an existing app install.
-./scripts/verify_windows_install.ps1 -Installer ./dist/youtube-music-downloader-0.1.0-windows-x64-setup.exe
+# Windows: PowerShell 7, disposable user/CI account, guarded against replacing an existing install.
+pwsh -NoProfile -File ./scripts/verify_windows_install.ps1 -Installer ./dist/youtube-music-downloader-0.1.0-windows-x64-setup.exe
 ```
 
 The Mac check does not install into `/Applications`, modify shell profiles, or write normal app
@@ -337,13 +357,14 @@ tests/               Python foundation and acquisition checks
 
 ## Development steps
 
-1. Set up the project and prove desktop packaging — implemented; Windows proof remains pending CI.
+1. Set up the project and prove desktop packaging — implemented; native CI proof passed on both targets.
 2. Build the shared Python download engine — implemented.
 3. Finish the terminal interface first — implemented.
 4. Build the React desktop interface — implemented.
-5. Produce installable packages — current; Mac image verified, Windows verification requires CI.
-6. Verify the complete experience.
+5. Produce installable packages — implemented; Mac image and Windows installer checks passed.
+6. Verify the complete experience — automated checks passed; manual acceptance remains tracked in
+   [the validation record](docs/validation.md).
 
 The finished MVP accepts one public YouTube or YouTube Music link at a time, creates an MP3, and
 shares a persistent default download folder between CLI and GUI. The engine uses safe
-filenames, preserve existing files, and clean up after cancellation or failure.
+filenames, preserves existing files, and cleans up after cancellation or failure.

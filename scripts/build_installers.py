@@ -31,6 +31,9 @@ def build_dmg() -> Path:
     app = ROOT / "dist" / "YouTube Music Downloader.app"
     if not app.is_dir():
         raise RuntimeError("Build the native desktop app first: python scripts/build_desktop.py")
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts/verify_macos_compatibility.py"), str(app)], check=True
+    )
     subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)], check=True)
     image = ROOT / "dist" / f"youtube-music-downloader-{app_version()}-macos-arm64.dmg"
     (ROOT / "build").mkdir(exist_ok=True)

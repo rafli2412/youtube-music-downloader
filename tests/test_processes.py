@@ -21,6 +21,18 @@ from ytmp3.engine import (
 
 
 class ProcessTests(unittest.TestCase):
+    def test_cancelled_conversion_does_not_start_a_process_or_create_temporary_files(self):
+        cancel = threading.Event()
+        cancel.set()
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch("ytmp3.engine.subprocess.Popen") as launch,
+                self.assertRaises(DownloadCancelled),
+            ):
+                DownloadEngine()._execute_tool("ffmpeg", [], Path(directory), cancel)
+            launch.assert_not_called()
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
     def test_cancellation_terminates_and_reaps_a_running_converter(self):
         # Exercise the actual Popen lifecycle with a controlled long-running process.
         processes = []
@@ -29,8 +41,11 @@ class ProcessTests(unittest.TestCase):
 
         def launch(*args, **kwargs):
             process = create_process(*args, **kwargs)
-            processes.append(process)
-            cancel.set()
+            # Windows cancellation also launches taskkill through subprocess.run.
+            # Only track the controlled converter, not its cleanup helper.
+            if str(args[0][0]) == sys.executable:
+                processes.append(process)
+                cancel.set()
             return process
 
         with tempfile.TemporaryDirectory() as directory:
