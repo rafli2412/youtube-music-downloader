@@ -168,7 +168,13 @@ def launch_desktop(
         if smoke_report:
             monitor_frontend()
             return
-        close_requested.wait()
+        dev_close_file = os.environ.get("YTMP3_DEV_CLOSE_FILE") if dev_url else None
+        while not close_requested.wait(0.15):
+            if closed.is_set():
+                return
+            if dev_close_file and Path(dev_close_file).is_file():
+                api._jobs.shutdown()
+                close_requested.set()
         if closed.is_set():
             return
         window.run_js("window.dispatchEvent(new Event('desktopclosing'))")

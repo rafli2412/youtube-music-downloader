@@ -148,8 +148,28 @@ If you are using this workspace's existing packaging environment on Mac, launch 
 .python/build-env/bin/ytmp3 gui
 ```
 
-For React hot reload, run `npm run dev --prefix frontend`, activate your Python environment in another
-terminal, then run `ytmp3 gui --dev-url http://127.0.0.1:5173`.
+### Live development updates
+
+Run one command to start Vite and the desktop together:
+
+```sh
+# macOS, using an existing development environment:
+.python/build-env/bin/python scripts/dev.py
+# Or with the standard setup:
+.venv/bin/python scripts/dev.py
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\python scripts/dev.py
+```
+
+React and CSS changes update immediately without rebuilding. Python and app-icon changes automatically
+close the desktop safely and reopen it; active jobs are cancelled and cleaned up before the restart.
+Python restarts reset the current preview and window state. Close the desktop window or press Ctrl+C
+in the development terminal to stop both processes. Start this mode once instead of running a separate
+Vite server; it uses port 5173.
 
 ## Build an installer
 
