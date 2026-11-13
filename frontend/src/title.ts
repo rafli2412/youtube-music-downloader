@@ -21,15 +21,28 @@ function cleanLabel(label: string): string {
 function withoutMatchingArtist(title: string, channel?: string | null): string {
   const normalized = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
   if (!channel?.trim()) return title;
-  const channelNames = new Set([normalized(channel)]);
-  let channelName = normalized(channel);
-  for (let pass = 0; pass < 4; pass++) {
-    const cleaned = channelName
-      .replace(/(?:\s*[-–—]\s*topic|\s*[-–—]\s*official|\s+official|\s*[([]official[)\]])$/, '')
-      .replace(/^official\s+/, '').trim();
-    if (!cleaned || cleaned === channelName) break;
-    channelNames.add(cleaned);
-    channelName = cleaned;
+  // Only known channel branding is ignored; arbitrary extra names are not fuzzy-matched.
+  const label = '(?:official\\s+channel|music\\s+group|record\\s+label|official|topic|vevo|music|musik|records?|recordings?|entertainment|productions?|studios?|channel|tv|rekaman)';
+  const separator = '[\\s._–—|:-]+';
+  const prefix = new RegExp('^' + label + separator, 'i');
+  const suffix = new RegExp(separator + label + '$', 'i');
+  const wrappedSuffix = new RegExp('\\s*[([]' + label + '[)\\]]$', 'i');
+  const initial = normalized(channel).replace(/^@/, '');
+  const channelNames = new Set([initial]);
+  const candidates = [initial];
+  // Retain intermediate names, so real artist names containing a label still match exactly.
+  for (let index = 0; index < candidates.length && index < 64; index++) {
+    const current = candidates[index];
+    for (const candidate of [
+      current.replace(prefix, ''), current.replace(suffix, ''),
+      current.replace(wrappedSuffix, ''), current.replace(/^vevo|vevo$/gi, ''),
+    ]) {
+      const cleaned = candidate.trim();
+      if (cleaned && !channelNames.has(cleaned)) {
+        channelNames.add(cleaned);
+        candidates.push(cleaned);
+      }
+    }
   }
   for (const separator of title.matchAll(/\s+[-–—|:]\s+/g)) {
     const artist = title.slice(0, separator.index);
