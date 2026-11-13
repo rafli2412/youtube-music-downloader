@@ -18,6 +18,25 @@ function cleanLabel(label: string): string {
   return text;
 }
 
+function hasCollaborationCredit(value: string): boolean {
+  return /\b(?:feat(?:uring)?|ft)\.?\s|[&,]|\s+(?:x|and|dan|with|bersama)\s+/i.test(value);
+}
+
+function creditWords(value: string): string[] {
+  const words = value.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const connectors = new Set(['feat', 'featuring', 'ft', 'with', 'and', 'dan', 'bersama', 'x', 'by', 'oleh']);
+  return words.filter(word => !connectors.has(word));
+}
+
+function losesCredits(parsedTitle: string, suggestion: string): boolean {
+  const available = new Set(creditWords(suggestion));
+  // Credit-bearing titles are kept conservatively if metadata omits any meaningful
+  // wording. Compare the whole title so delimiters inside names do not split credits.
+  const hasCredits = hasCollaborationCredit(parsedTitle)
+    || /\b(?:remix|mix|rework|bootleg|edit)\b/i.test(parsedTitle);
+  return hasCredits && creditWords(parsedTitle).some(word => !available.has(word));
+}
+
 function withoutMatchingArtist(title: string, channel?: string | null): string {
   const normalized = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
   if (!channel?.trim()) return title;
@@ -48,6 +67,7 @@ function withoutMatchingArtist(title: string, channel?: string | null): string {
     const artist = title.slice(0, separator.index);
     const song = title.slice(separator.index! + separator[0].length).trim();
     if (song && channelNames.has(normalized(artist))) {
+      if (hasCollaborationCredit(artist)) return title;
       // A repeated artist-looking prefix may actually be part of the song title.
       // Keep this ambiguous structure instead of stripping another part on each call.
       for (const nested of song.matchAll(/\s+[-–—|:]\s+/g)) {
@@ -111,5 +131,7 @@ export function suggestVideoFilename(video: SongMetadata): string {
     return suggestFilename(title, video.channel);
   }
   // Track names are actual song metadata: do not strip label-like words from them.
-  return withoutMatchingArtist(`${artist} - ${track}`, video.channel);
+  const suggestion = withoutMatchingArtist(`${artist} - ${track}`, video.channel);
+  const parsedTitle = suggestFilename(title, video.channel);
+  return losesCredits(parsedTitle, suggestion) ? parsedTitle : suggestion;
 }

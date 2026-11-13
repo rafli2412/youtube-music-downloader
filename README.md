@@ -79,6 +79,8 @@ Windows PowerShell:
    title. When both track and artist metadata are available, they supply the suggested name; otherwise
    the app uses conservative English/Indonesian title cleanup. If music metadata omits remix, cover,
    live, or version details found in the video title, title cleanup is used to preserve those details.
+   Featured artists and named remixer credits are also preserved: incomplete music metadata falls
+   back to the cleaned video title rather than dropping names.
    The cleanup removes clear video,
    lyrics, official, quality, subtitle, and promotional labels while preserving the artist and musical
    versions such as remix, cover, and radio edit. A leading artist is omitted when it matches the

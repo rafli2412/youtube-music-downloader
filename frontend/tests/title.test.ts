@@ -128,3 +128,33 @@ for (const { video, expected } of metadataCases) {
     assert.deepEqual(video, original, 'preview metadata must remain unchanged');
   });
 }
+
+const creditCases = [
+  { title: 'Artist feat. Guest - Song [Official Video]', channel: 'Artist', track: 'Song', artist: 'Artist', expected: 'Artist feat. Guest - Song' },
+  { title: 'Artist ft. Guest - Song', channel: 'Artist', track: 'Song', artist: 'Artist', expected: 'Artist ft. Guest - Song' },
+  { title: 'Artist featuring Guest - Song', channel: 'Label', track: 'Song', artist: 'Artist', expected: 'Artist featuring Guest - Song' },
+  { title: 'Artist & Guest - Song', channel: 'Artist & Guest', track: 'Song', artist: 'Artist', expected: 'Artist & Guest - Song' },
+  { title: 'Artist x Guest - Song', channel: 'Artist', track: 'Song', artist: 'Artist', expected: 'Artist x Guest - Song' },
+  { title: 'Artist - Song (feat. Guest)', channel: 'Artist', track: 'Song', artist: 'Artist', expected: 'Song (feat. Guest)' },
+  { title: 'Artist - Song (feat. Guest A & Guest B)', channel: 'Artist', track: 'Song (feat. Guest A)', artist: 'Artist', expected: 'Song (feat. Guest A & Guest B)' },
+  { title: 'Artist - Song (DJ Example Remix) [Official Video]', channel: 'Artist', track: 'Song (Remix)', artist: 'Artist', expected: 'Song (DJ Example Remix)' },
+  { title: 'Artist - Song - DJ Example Remix', channel: 'Artist', track: 'Song (Remix)', artist: 'Artist', expected: 'Song - DJ Example Remix' },
+  { title: 'Artist - Song (Remix by DJ Example)', channel: 'Artist', track: 'Song (Remix)', artist: 'Artist', expected: 'Song (Remix by DJ Example)' },
+  { title: 'Artist - Song (DJ - Example Remix)', channel: 'Artist', track: 'Song (Example Remix)', artist: 'Artist', expected: 'Song (DJ - Example Remix)' },
+  { title: 'Artist feat. Mary - Jane - Song', channel: 'Artist', track: 'Song', artist: 'Artist & Mary', expected: 'Artist feat. Mary - Jane - Song' },
+  { title: 'Artist - Song (DJ Example Remix)', channel: 'Artist', track: 'Song (DJ Example Remix)', artist: 'Artist', expected: 'Song (DJ Example Remix)' },
+  { title: 'Artist - Song (Ann Remix)', channel: 'Artist', track: 'Song (Joanne Remix)', artist: 'Artist', expected: 'Song (Ann Remix)' },
+  { title: 'Artist - Song (feat. Guest) [Lyrics]', channel: 'Artist', track: 'Song (featuring Guest)', artist: 'Artist', expected: 'Song (featuring Guest)' },
+  { title: 'Artist - Song (DJ Example Remix)', channel: 'Artist', track: 'Song (DJ Example Remix)', artist: 'Artist', expected: 'Song (DJ Example Remix)' },
+];
+for (const { expected, ...video } of creditCases) {
+  test(`retains featured artists and remixer credits: ${video.title}`, () => {
+    assert.equal(suggestVideoFilename(video), expected);
+    const parsed = suggestFilename(video.title, video.channel);
+    assert.equal(suggestFilename(parsed, video.channel), parsed);
+  });
+}
+
+test('matching a collaborative channel does not erase its credited artists', () => {
+  assert.equal(suggestFilename('Artist & Guest - Song', 'Artist & Guest Official'), 'Artist & Guest - Song');
+});
