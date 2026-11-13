@@ -73,7 +73,8 @@ Windows PowerShell:
 
 1. Copy a video or song link from your browser and paste it into the app.
 2. Select **Choose folder** to set your download destination. The app remembers it.
-3. Select **Preview video** to load its title, channel, duration, publication date/time, and thumbnail.
+3. Select **Preview video** to load its title, track, artist, channel, duration, publication date/time,
+   and thumbnail. Track and artist show **Not available** when YouTube does not provide them.
 4. Check that it is the correct video. Optionally enter a filename; leave it blank to use the video
    title. When both track and artist metadata are available, they supply the suggested name; otherwise
    the app uses conservative English/Indonesian title cleanup. If music metadata omits remix, cover,

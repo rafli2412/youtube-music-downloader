@@ -24,6 +24,8 @@ export function VideoDetails({ video }: { video: VideoMetadata }) {
   return <section className="video-details" aria-label="YouTube video details">
     <div className="video-thumbnail">{thumbnail && failedImage !== thumbnail ? <img src={thumbnail} alt={`Thumbnail for ${video.title ?? 'this video'}`} referrerPolicy="no-referrer" onError={() => setFailedImage(thumbnail)} /> : <span>Thumbnail unavailable</span>}</div>
     <div className="video-information"><h3>{video.title ?? 'Untitled video'}</h3><dl>
+      <div><dt>Track</dt><dd>{video.track?.trim() || 'Not available'}</dd></div>
+      <div><dt>Artist</dt><dd>{video.artist?.trim() || 'Not available'}</dd></div>
       <div><dt>Channel</dt><dd>{video.channel ?? 'Not available'}</dd></div>
       <div><dt>Duration</dt><dd>{durationLabel(video.duration)}</dd></div>
       <div><dt>Published</dt><dd>{published}</dd></div>
