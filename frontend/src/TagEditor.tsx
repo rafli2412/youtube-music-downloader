@@ -23,7 +23,9 @@ export function TagEditor({ value, onChange, cover, thumbnail, onChooseCover, di
     if (value.cover !== 'local' || disabled || !value.enabled) return;
     const paste = (event: ClipboardEvent) => {
       const target = event.target;
-      if (target instanceof HTMLElement && (target.closest('input, textarea, [contenteditable="true"]'))) return;
+      const editing = (element: EventTarget | null) => element instanceof HTMLElement
+        && (element.matches('input, textarea, select') || element.isContentEditable);
+      if (editing(target) || editing(document.activeElement)) return;
       event.preventDefault();
       receive(Array.from(event.clipboardData?.files ?? []), 'paste');
     };
@@ -46,7 +48,6 @@ export function TagEditor({ value, onChange, cover, thumbnail, onChooseCover, di
           <span>Choose an image</span><span className="cover-drop-hint">Click to browse · Drag &amp; drop · Copy &amp; paste</span>
           <span className="cover-drop-hint">JPEG, PNG or WebP · Up to 10 MB</span>
         </button>
-        <button type="button" className="secondary-button" onClick={() => onChooseCover(undefined, 'paste')}>Paste image</button>
         {imageError && <p role="alert" className="error-message">{imageError}</p>}
       </>}
       {value.cover === 'local' && <p className="folder-hint">{cover?.name ?? 'Choose a JPEG, PNG, or WebP image (up to 10 MB).'}</p>}

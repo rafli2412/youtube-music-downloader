@@ -132,8 +132,8 @@ Album uses structured music metadata first, then explicit English/Indonesian des
 or quoted album phrases. Conflicting or uncertain mentions stay blank. Description suggestions
 are marked for review and remain editable.
 
-Choose **Video thumbnail**, **Select an image**, or **No cover**. The image area lets you browse or drop an image file. Choose **Paste image**, or paste
-while Select an image is active and you are not editing a text field. On macOS, native
+Choose **Video thumbnail**, **Select an image**, or **No cover**. The image area lets you browse or drop an image file. Paste with **⌘V** on macOS or **Ctrl+V** on Windows
+while Select an image is active and no editable field is focused. On macOS, native
 PNG/TIFF clipboard representations are converted to PNG. In a browser, use **Copy Image**
 rather than **Copy Image Address** or **Copy Link**.
 Drag and paste depend on the source app supplying image data; if unavailable, export the image
