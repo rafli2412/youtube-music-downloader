@@ -214,6 +214,22 @@ export function App() {
   const fraction = job.status === 'downloading' ? job.fraction : null;
   const status = closing ? 'Closing after cleaning up…' : progressLabel(job);
 
+  useEffect(() => {
+    const paste = () => {
+      if (!client.current || closingRef.current) return;
+      const focused = document.activeElement;
+      const editing = focused instanceof HTMLElement
+        && (focused.matches('input, textarea, select') || focused.isContentEditable);
+      if (canReview && tags.enabled && tags.cover === 'local' && !disabled && !editing) {
+        void chooseCover(undefined, 'paste');
+      } else if (editing) {
+        void client.current.call(api => api.paste_text()).catch(failure => setError(message(failure)));
+      }
+    };
+    window.addEventListener('nativepaste', paste);
+    return () => window.removeEventListener('nativepaste', paste);
+  });
+
   return <div className="app-shell" data-desktop-state={appInfo && initialized ? 'ready' : 'connecting'} data-job-status={job.status}>
     <header className="app-header">
       <div className="brand"><div className="brand-icon"><MusicIcon /></div><span>YouTube Music Downloader</span></div>

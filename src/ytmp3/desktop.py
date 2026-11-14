@@ -142,6 +142,12 @@ class DesktopApi:
                 "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
             }
 
+    def paste_text(self) -> None:
+        if platform.system() == "Darwin" and self._window is not None:
+            from ytmp3.macos_paste import paste_into_focused_field
+
+            paste_into_focused_field(self._window)
+
     def import_native_cover(self, preview_id: str, source: str = "paste") -> dict[str, str]:
         from ytmp3.clipboard import native_image
 
@@ -299,7 +305,14 @@ def launch_desktop(
         close_requested.set()
         return False
 
+    paste_cleanup = None
+
     def lifecycle() -> None:
+        nonlocal paste_cleanup
+        if platform.system() == "Darwin" and not smoke_report:
+            from ytmp3.macos_paste import install_paste_shortcut
+
+            paste_cleanup = install_paste_shortcut(window)
         if smoke_report:
             monitor_frontend()
             return
@@ -349,6 +362,8 @@ def launch_desktop(
         webview.settings["OPEN_DEVTOOLS_IN_DEBUG"] = False
         webview.start(lifecycle, debug=bool(dev_url), **options)
     finally:
+        if paste_cleanup is not None:
+            paste_cleanup()
         api._jobs.shutdown()
         api._jobs.wait()
         closed.set()
