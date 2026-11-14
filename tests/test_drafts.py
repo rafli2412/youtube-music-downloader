@@ -1,5 +1,6 @@
 """Persistent draft restore, cover snapshots, rollback, and successful cleanup."""
 
+import base64
 import json
 import tempfile
 import unittest
@@ -143,6 +144,9 @@ class DraftRestartTests(unittest.TestCase):
                 "sys.modules", {"webview": SimpleNamespace(FileDialog=SimpleNamespace(OPEN=1))}
             ):
                 selected = api.choose_cover()
+            selected = api.import_cover(
+                identity, "dropped-cover.png", base64.b64encode(cover_png()).decode("ascii")
+            )
             api.save_draft(URL, "Edited filename", options(), identity)
             local.unlink()
             jobs.shutdown()

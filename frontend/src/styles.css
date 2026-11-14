@@ -124,3 +124,8 @@ progress { width: 100%; height: 7px; margin-top: 12px; accent-color: #557b62; }
 .cover-controls select { flex: 1; min-width: 130px; border: 1px solid #dce2d7; border-radius: 7px; background: #fbfcf9; padding: 10px; color: #455c4d; font-family: inherit; font-size: 12px; }
 .album-cover-preview { display: block; width: 150px; height: 150px; object-fit: contain; background: #e4e9df; border-radius: 7px; margin-top: 12px; }
 @media (max-width: 480px) { .tag-grid { grid-template-columns: 1fr; } }
+
+.cover-dropzone { width: 100%; margin-top: 12px; min-height: 160px; border: 2px dashed #9aafa1; border-radius: 12px; background: #f5f7f2; color: #455c4d; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; padding: 20px; cursor: pointer; }
+.cover-dropzone.dragging, .cover-dropzone:hover { border-color: #355446; background: #e8f0e9; }
+.cover-dropzone:focus-visible { outline: 3px solid #9fc5b2; outline-offset: 3px; }
+.cover-drop-hint { font-size: 11px; font-weight: 400; }

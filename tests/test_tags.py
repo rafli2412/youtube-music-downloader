@@ -1,5 +1,6 @@
 """Verify real ID3v2.3 output, artwork, disabled tags, and atomic failure cleanup."""
 
+import base64
 import struct
 import subprocess
 import tempfile
@@ -81,6 +82,27 @@ class TagOptionsTests(unittest.TestCase):
         for invalid in ("1/12", "abc", "-1", "1.5", "１２"):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 normalize_tags({"track_number": invalid}, {})
+
+    def test_imported_cover_validates_bytes_and_preview_identity(self):
+        jobs = Mock()
+        jobs.snapshot.return_value = {"busy": False, "status": "ready", "preview_id": "preview"}
+        api = DesktopApi(jobs=jobs)
+        encoded = base64.b64encode(cover_png()).decode("ascii")
+        selected = api.import_cover("preview", "clipboard.png", encoded)
+        self.assertEqual(selected["name"], "clipboard.png")
+        self.assertTrue(selected["preview"].startswith("data:image/png;base64,"))
+        self.assertEqual(api._cover_data, cover_png())
+        for identity, data in (
+            ("stale", encoded),
+            ("preview", "!invalid"),
+            ("preview", base64.b64encode(b"not an image").decode()),
+        ):
+            with self.assertRaises((ValueError, RuntimeError)):
+                api.import_cover(identity, "bad.png", data)
+        self.assertEqual(api._cover_data, cover_png())
+        jobs.snapshot.return_value["busy"] = True
+        with self.assertRaises(RuntimeError):
+            api.import_cover("preview", "busy.png", encoded)
 
     def test_artwork_urls_and_image_types_are_restricted(self):
         self.assertEqual(image_mime(cover_png()), "image/png")

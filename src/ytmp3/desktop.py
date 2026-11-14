@@ -142,6 +142,36 @@ class DesktopApi:
                 "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
             }
 
+    def import_cover(self, preview_id: str, name: str, encoded: str) -> dict[str, str]:
+        """Accept bounded image bytes from a drop or clipboard, never a supplied path."""
+        with self._dialog_lock:
+            state = self._jobs.snapshot()
+            if (
+                state["busy"]
+                or state["status"] not in {"ready", "failed", "cancelled"}
+                or not preview_id
+                or state.get("preview_id") != preview_id
+            ):
+                raise RuntimeError("Preview a video before choosing its cover.")
+            if not isinstance(encoded, str) or len(encoded) > 4 * ((MAX_COVER_BYTES + 2) // 3):
+                raise ValueError("Cover images must be 10 MB or smaller.")
+            try:
+                data = base64.b64decode(encoded, validate=True)
+            except ValueError as error:
+                raise ValueError("The image data is invalid.") from error
+            if len(data) > MAX_COVER_BYTES:
+                raise ValueError("Cover images must be 10 MB or smaller.")
+            mime = image_mime(data)
+            self._cover_data = data
+            self._cover_name = (
+                Path(name).name[:255] if isinstance(name, str) and name else "Pasted image"
+            )
+            self._cover_job_id = preview_id
+            return {
+                "name": self._cover_name,
+                "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+            }
+
     def cancel_download(self) -> dict[str, Any]:
         return self._jobs.cancel()
 

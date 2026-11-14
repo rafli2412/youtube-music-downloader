@@ -132,8 +132,9 @@ Album uses structured music metadata first, then explicit English/Indonesian des
 or quoted album phrases. Conflicting or uncertain mentions stay blank. Description suggestions
 are marked for review and remain editable.
 
-Choose **Video thumbnail**, **Local image**, or **No cover**. **Choose image…** opens a native file
-picker and previews your selection. JPEG, PNG, and WebP images up to 10 MB and 40 megapixels are
+Choose **Video thumbnail**, **Select an image**, or **No cover**. The image area lets you browse, drop an image file, or paste a copied image while it is focused.
+Drag and paste depend on the source app supplying image data; if unavailable, export the image
+and browse for it. Selected images are previewed and preserved with your saved draft. JPEG, PNG, and WebP images up to 10 MB and 40 megapixels are
 supported. Artwork is resized to fit within 1024×1024 without cropping and embedded as a JPEG front
 cover. The video thumbnail may not be the actual album cover.
 
