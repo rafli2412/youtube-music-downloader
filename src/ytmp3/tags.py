@@ -37,7 +37,8 @@ def normalize_tags(payload: Any, metadata: dict[str, Any]) -> dict[str, Any]:
         "title": metadata.get("track") or metadata.get("title") or "",
         "artist": metadata.get("artist") or "",
         "album": metadata.get("album") or "",
-        "year": metadata.get("release_year") or "",
+        "year": str(metadata.get("published_date") or "")[:4] or metadata.get("release_year") or "",
+        "track_number": metadata.get("track_number") or "",
         "cover": "thumbnail" if metadata.get("thumbnail") else "none",
     }
     result = {**defaults, **(payload or {})}
@@ -45,7 +46,7 @@ def normalize_tags(payload: Any, metadata: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("The tags option must be enabled or disabled.")
     if not result["enabled"]:
         return {**defaults, "enabled": False, "cover": "none"}
-    for field in ("title", "artist", "album", "year"):
+    for field in ("title", "artist", "album", "year", "track_number"):
         if not isinstance(result[field], str):
             raise ValueError(f"The {field} tag must be text.")
         result[field] = result[field].strip()
@@ -53,6 +54,8 @@ def normalize_tags(payload: Any, metadata: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"The {field} tag is too long or contains invalid characters.")
     if result["year"] and (not re.fullmatch(r"\d{4}", result["year"]) or int(result["year"]) == 0):
         raise ValueError("Enter a four-digit release year, or leave it blank.")
+    if result["track_number"] and not re.fullmatch(r"[0-9]+", result["track_number"]):
+        raise ValueError("Enter digits only for the track number, or leave it blank.")
     if result["cover"] not in ("thumbnail", "local", "none"):
         raise ValueError("Choose the video thumbnail, a local cover image, or no cover.")
     return {key: result[key] for key in defaults}
@@ -108,14 +111,20 @@ def load_thumbnail(url: str, check_cancel: Callable[[], None]) -> bytes:
 
 
 def write_tags(path: Path, options: dict[str, Any], jpeg_cover: bytes | None = None) -> None:
-    from mutagen.id3 import APIC, ID3, TALB, TDRC, TIT2, TPE1, delete
+    from mutagen.id3 import APIC, ID3, TALB, TDRC, TIT2, TPE1, TRCK, delete
 
     if not options["enabled"]:
         delete(path)
         return
     tags = ID3()
-    for field, frame in (("title", TIT2), ("artist", TPE1), ("album", TALB), ("year", TDRC)):
-        if options[field]:
+    for field, frame in (
+        ("title", TIT2),
+        ("artist", TPE1),
+        ("album", TALB),
+        ("year", TDRC),
+        ("track_number", TRCK),
+    ):
+        if options.get(field):
             tags.add(frame(encoding=1, text=[options[field]]))
     if jpeg_cover:
         tags.add(APIC(encoding=1, mime="image/jpeg", type=3, desc="Cover", data=jpeg_cover))

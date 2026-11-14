@@ -98,6 +98,7 @@ export interface SongTags {
   artist: string;
   album: string;
   year: string;
+  track_number?: string;
   cover: 'thumbnail' | 'local' | 'none';
 }
 export interface SavedDownloadDraft { url: string; filename: string; tags: SongTags; cover: CoverSelection | null; warning?: string | null; }
@@ -107,6 +108,8 @@ export interface Settings { download_directory: string; }
 export type JobStatus = 'idle' | 'ready' | 'resolving' | 'downloading' | 'converting' | 'tagging' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
 export interface VideoMetadata {
   album?: string | null;
+  track_number?: string | null;
+  channel_is_verified?: boolean;
   release_year?: string | null;
   track?: string | null;
   artist?: string | null;

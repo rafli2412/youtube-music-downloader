@@ -38,6 +38,13 @@ class DraftStore:
         for key in ("title", "artist", "album", "year"):
             if not isinstance(tags.get(key), str) or len(tags[key]) > 1000 or "\x00" in tags[key]:
                 raise DraftError(f"Invalid saved {key} tag.")
+        track = tags.get("track_number", "")
+        if (
+            not isinstance(track, str)
+            or len(track) > 1000
+            or (track and not re.fullmatch(r"[0-9]+", track))
+        ):
+            raise DraftError("Invalid saved track number.")
         if tags.get("cover") not in ("local", "thumbnail", "none"):
             raise DraftError("Invalid saved cover option.")
         if record.get("metadata") is not None and not isinstance(record["metadata"], dict):

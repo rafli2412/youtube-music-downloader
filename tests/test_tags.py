@@ -38,7 +38,7 @@ def cover_png():
 
 
 class TagOptionsTests(unittest.TestCase):
-    def test_defaults_use_release_metadata_and_not_upload_year(self):
+    def test_defaults_use_publication_year(self):
         metadata = video_metadata(
             {
                 "title": "Video",
@@ -51,7 +51,7 @@ class TagOptionsTests(unittest.TestCase):
         defaults = normalize_tags(None, metadata)
         self.assertEqual(defaults["title"], "Song")
         self.assertEqual(defaults["album"], "Album")
-        self.assertEqual(defaults["year"], "")
+        self.assertEqual(defaults["year"], "2025")
         self.assertEqual(
             video_metadata({"release_date": "19980102", "upload_date": "20250101"})["release_year"],
             "",
@@ -72,6 +72,15 @@ class TagOptionsTests(unittest.TestCase):
             with self.subTest(year=year), self.assertRaises(ValueError):
                 normalize_tags({"year": year}, {})
         self.assertFalse(normalize_tags({"enabled": False, "year": "invalid"}, {})["enabled"])
+
+    def test_track_number_digits_only_and_metadata_passthrough(self):
+        metadata = video_metadata({"track_number": 12, "channel_is_verified": True})
+        self.assertEqual(metadata["track_number"], "12")
+        self.assertTrue(metadata["channel_is_verified"])
+        self.assertEqual(normalize_tags(None, metadata)["track_number"], "12")
+        for invalid in ("1/12", "abc", "-1", "1.5", "１２"):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                normalize_tags({"track_number": invalid}, {})
 
     def test_artwork_urls_and_image_types_are_restricted(self):
         self.assertEqual(image_mime(cover_png()), "image/png")
@@ -105,6 +114,7 @@ class TagIntegrationTests(unittest.TestCase):
             filename="Custom name",
             tags={
                 "title": "Song 音楽",
+                "track_number": "12",
                 "artist": "Artist & Guest",
                 "album": "Album",
                 "year": "1998",
@@ -119,6 +129,7 @@ class TagIntegrationTests(unittest.TestCase):
             ("TPE1", "Artist & Guest"),
             ("TALB", "Album"),
             ("TYER", "1998"),
+            ("TRCK", "12"),
         ):
             self.assertEqual(str(tags[frame]), value)
         image = tags.getall("APIC")[0]

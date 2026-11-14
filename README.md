@@ -123,10 +123,12 @@ it with QuickTime Player.
 
 ## Song tags and cover art
 
-After previewing a video, use **Song tags** to edit the song title, artist, album, and release year.
-Available music metadata is prefilled; missing artist/album/year values remain blank. The song title
-is independent of the filename. Changing one does not change the other. Release year comes from
-release metadata, never the video upload year; you can enter a four-digit year manually.
+After previewing a video, use **Song tags** to edit the song title, artist, album, year, and track number.
+Available music metadata is prefilled. A matching verified or officially branded channel can
+supply the artist; unrelated uploader names are ignored. Song title starts with the parsed title
+and stays independent of filename edits. Year defaults to the video publication year and remains
+editable. Track number accepts digits only and is prefilled when music metadata supplies it.
+Album uses structured music metadata; description-based album detection is not yet enabled.
 
 Choose **Video thumbnail**, **Local image**, or **No cover**. **Choose image…** opens a native file
 picker and previews your selection. JPEG, PNG, and WebP images up to 10 MB and 40 megapixels are

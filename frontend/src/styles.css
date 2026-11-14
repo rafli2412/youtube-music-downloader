@@ -11,7 +11,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 360px; }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { -webkit-appearance: none; appearance: none; }
 button:focus-visible, input:focus-visible { outline: 3px solid #a4c5b3; outline-offset: 4px; }
 ::selection { background: #d3e5d8; }
@@ -121,6 +121,6 @@ progress { width: 100%; height: 7px; margin-top: 12px; accent-color: #557b62; }
 .tag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .tag-grid input { padding: 0 12px; }
 .cover-controls { display: flex; gap: 10px; flex-wrap: wrap; }
-.cover-controls select { flex: 1; min-width: 130px; border: 1px solid #dce2d7; border-radius: 7px; background: #fbfcf9; padding: 10px; color: #455c4d; font: inherit; }
+.cover-controls select { flex: 1; min-width: 130px; border: 1px solid #dce2d7; border-radius: 7px; background: #fbfcf9; padding: 10px; color: #455c4d; font-family: inherit; font-size: 12px; }
 .album-cover-preview { display: block; width: 150px; height: 150px; object-fit: contain; background: #e4e9df; border-radius: 7px; margin-top: 12px; }
 @media (max-width: 480px) { .tag-grid { grid-template-columns: 1fr; } }

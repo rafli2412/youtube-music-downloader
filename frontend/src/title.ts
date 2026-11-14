@@ -135,3 +135,13 @@ export function suggestVideoFilename(video: SongMetadata): string {
   const parsedTitle = suggestFilename(title, video.channel);
   return losesCredits(parsedTitle, suggestion) ? parsedTitle : suggestion;
 }
+
+/** Require a matching artist prefix plus an official/verified channel signal. */
+export function officialChannelArtist(video: SongMetadata & { channel_is_verified?: boolean }): string {
+  const channel = video.channel ?? '';
+  if (!video.channel_is_verified && !/\b(?:official|resmi|topic)\b|vevo$/i.test(channel)) return '';
+  const title = video.title ?? '';
+  const match = /^(.*?)\s+[-–—|:]\s+/.exec(title);
+  if (!match || withoutMatchingArtist(title, channel) === title) return '';
+  return match[1].trim();
+}

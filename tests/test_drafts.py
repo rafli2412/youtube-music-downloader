@@ -49,10 +49,12 @@ class DraftStoreTests(unittest.TestCase):
     def test_roundtrip_keeps_partial_edits_and_cover_in_a_new_store_instance(self):
         data = record()
         data["tags"]["year"] = "20"
+        data["tags"]["track_number"] = "12"
         self.store.save(data, cover_png(), "selected.png")
         saved, cover = DraftStore(self.root / "settings.json").load()
         self.assertEqual(saved["filename"], data["filename"])
         self.assertEqual(saved["tags"]["year"], "20")
+        self.assertEqual(saved["tags"]["track_number"], "12")
         self.assertEqual(cover, cover_png())
         self.assertEqual(saved["cover_name"], "selected.png")
         if __import__("os").name != "nt":

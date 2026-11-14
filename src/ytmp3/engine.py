@@ -141,6 +141,11 @@ def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
         "track": text(info.get("track")),
         "artist": artist,
         "album": text(info.get("album")),
+        "track_number": str(info["track_number"])
+        if str(info.get("track_number", "")).isascii()
+        and str(info.get("track_number", "")).isdigit()
+        else "",
+        "channel_is_verified": info.get("channel_is_verified") is True,
         "release_year": release_year(info),
         "channel": info.get("channel") or info.get("uploader"),
         "duration": info.get("duration"),
