@@ -155,9 +155,10 @@ def _extract_audio(
 ) -> tuple[dict[str, Any], Path]:
     import yt_dlp
 
+    attempt_options = dict(options)
     for attempt in range(2):
         try:
-            with yt_dlp.YoutubeDL(options) as downloader:
+            with yt_dlp.YoutubeDL(attempt_options) as downloader:
                 info = downloader.extract_info(url, download=download)
                 if not info:
                     raise UnsupportedContent("This item is unavailable or cannot be downloaded.")
@@ -167,9 +168,11 @@ def _extract_audio(
             message = str(error).lower()
             if attempt or not any(text in message for text in ("not a bot", "sign in to confirm")):
                 raise
-            # One fresh guest session after a pause; persistent verification is reported.
-            # The parent can cancel this isolated worker during the wait.
+            # One fresh guest session after a pause, using IPv4 as a bounded routing fallback.
+            # Preserve an explicitly configured interface. The parent can cancel during the wait.
             time.sleep(10)
+            if not options.get("source_address"):
+                attempt_options = {**options, "source_address": "0.0.0.0"}
     raise AssertionError("Unreachable retrieval state")
 
 

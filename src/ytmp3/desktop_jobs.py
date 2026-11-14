@@ -19,8 +19,9 @@ def download_error_message(error: Exception) -> str:
     lower = message.lower()
     if "not a bot" in lower or "sign in to confirm" in lower:
         return (
-            "YouTube is asking for verification for this video. "
-            "Try another public link or try again later."
+            "YouTube blocked this request for verification. No new MP3 was saved. "
+            "Wait a few minutes before retrying. If it persists, try a different network "
+            "or another public link."
         )
     if any(text in lower for text in ("private video", "login required", "sign in")):
         return "This video requires account access. Choose a public video or song."

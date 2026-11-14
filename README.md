@@ -231,8 +231,13 @@ bundled native binaries against the app's declared minimum OS.
   account-restricted content are rejected. A video link containing playlist parameters downloads
   only that video.
 - YouTube may request verification or deny a public video on some networks or in some regions.
-  For a verification rejection, the app waits 10 seconds and retries once with a fresh guest session.
+  For a verification rejection, the app waits 10 seconds and retries once with a fresh guest session
+  over IPv4 (unless a source interface is explicitly configured). This can help with routing-related
+  failures, but cannot guarantee YouTube will accept the request.
   Cancellation remains available during the wait. Persistent verification is reported as an error.
+  This happens before the MP3 is published and is separate from song-tag or artwork errors.
+  If it persists, wait before retrying or try another network; see yt-dlp’s
+  [known YouTube verification issue](https://github.com/yt-dlp/yt-dlp/issues/3766).
   Try another public link or retry later. The app does not support signing in or importing cookies.
 - If a destination cannot be written, choose a local writable folder. Mac destinations must support
   hard links, such as an APFS volume.

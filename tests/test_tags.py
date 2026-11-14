@@ -1,6 +1,7 @@
 """Verify real ID3v2.3 output, artwork, disabled tags, and atomic failure cleanup."""
 
 import struct
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -13,6 +14,7 @@ from mutagen.mp3 import MP3
 from test_engine import TOOLS_AVAILABLE, URL, _wave_worker
 
 from ytmp3.engine import DownloadCancelled, DownloadEngine, DownloadError, video_metadata
+from ytmp3.runtime import tool_path
 from ytmp3.tags import image_mime, normalize_tags, validate_thumbnail_url
 
 
@@ -122,6 +124,71 @@ class TagIntegrationTests(unittest.TestCase):
         self.assertGreater(MP3(result.path).info.length, 0)
         self.assertEqual(result.path.name, "Custom name.mp3")
         self.assertEqual(list(self.root.iterdir()), [result.path])
+        embedded = self.root / "embedded-cover.jpg"
+        embedded.write_bytes(image.data)
+        decoded = subprocess.run(
+            [
+                str(tool_path("ffmpeg")),
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(embedded),
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale=1:1",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "pipe:1",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        red, green, blue = decoded.stdout[:3]
+        self.assertGreater(red, 220)
+        self.assertLess(green, 30)
+        self.assertLess(blue, 30)
+
+    def test_different_filenames_keep_identical_edited_title_tags_and_artwork(self):
+        options = {
+            "title": "Same song title",
+            "artist": "Edited artist",
+            "album": "Edited album",
+            "year": "2004",
+            "cover": "local",
+        }
+        outputs = [
+            self.engine.download(
+                URL, directory=self.root, filename=name, tags=options, cover_data=cover_png()
+            )
+            for name in ("First filename", "Completely different filename")
+        ]
+        first, second = [ID3(output.path, translate=False) for output in outputs]
+        self.assertNotEqual(outputs[0].path.name, outputs[1].path.name)
+        for frame, expected in (
+            ("TIT2", "Same song title"),
+            ("TPE1", "Edited artist"),
+            ("TALB", "Edited album"),
+            ("TYER", "2004"),
+        ):
+            self.assertEqual(str(first[frame]), expected)
+            self.assertEqual(str(second[frame]), expected)
+        self.assertEqual(first.getall("APIC")[0].data, second.getall("APIC")[0].data)
+        self.assertGreater(MP3(outputs[1].path).info.length, 0)
+
+    def test_cleared_tags_and_no_cover_are_not_replaced_by_defaults(self):
+        result = self.engine.download(
+            URL,
+            directory=self.root,
+            tags={"title": "Only a title", "artist": "", "album": "", "year": "", "cover": "none"},
+        )
+        tags = ID3(result.path, translate=False)
+        self.assertEqual(str(tags["TIT2"]), "Only a title")
+        for frame in ("TPE1", "TALB", "TYER", "APIC"):
+            self.assertEqual(tags.getall(frame), [])
 
     def test_disabled_tags_omit_id3_and_keep_audio_playable(self):
         result = self.engine.download(URL, directory=self.root, tags={"enabled": False})

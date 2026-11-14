@@ -34,6 +34,21 @@ class VerificationRetryTests(unittest.TestCase):
             self.assertEqual(source.name, "source.wav")
             self.assertEqual(factory.call_count, 2)
             pause.assert_called_once_with(10)
+            self.assertEqual(factory.call_args_list[0].args[0], {})
+            self.assertEqual(factory.call_args_list[1].args[0]["source_address"], "0.0.0.0")
+
+    def test_configured_interface_is_retained_on_retry_without_mutating_options(self):
+        options = {"source_address": "::"}
+        with patch("yt_dlp.YoutubeDL") as factory, patch("ytmp3.engine.time.sleep"):
+            downloader = factory.return_value.__enter__.return_value
+            downloader.extract_info.side_effect = [
+                DownloadError("not a bot"),
+                {"id": "abcdefghijk", "title": "Audio"},
+            ]
+            downloader.prepare_filename.return_value = "source.wav"
+            _extract_audio("https://youtu.be/abcdefghijk", options)
+            self.assertEqual(factory.call_args_list[1].args[0]["source_address"], "::")
+        self.assertEqual(options, {"source_address": "::"})
 
     def test_persistent_verification_stops_after_one_retry(self):
         with patch("yt_dlp.YoutubeDL") as factory, patch("ytmp3.engine.time.sleep") as pause:

@@ -45,6 +45,8 @@ class DesktopJobsTests(unittest.TestCase):
         )
         self.assertIn("verification", message)
         self.assertIn("public link", message)
+        self.assertIn("No new MP3 was saved", message)
+        self.assertIn("different network", message)
         self.assertNotIn("cookies", message)
 
     def setUp(self):
