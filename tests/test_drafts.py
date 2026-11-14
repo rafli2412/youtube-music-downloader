@@ -14,7 +14,7 @@ from test_tags import cover_png
 from ytmp3.desktop import DesktopApi
 from ytmp3.desktop_jobs import DesktopJobs
 from ytmp3.drafts import DraftError, DraftStore
-from ytmp3.engine import DownloadEngine
+from ytmp3.engine import DownloadEngine, video_metadata
 from ytmp3.settings import SettingsStore
 
 
@@ -122,7 +122,13 @@ class DraftRestartTests(unittest.TestCase):
             settings.set_download_directory(root / "audio")
             engine = DownloadEngine(_worker_target=_wave_worker)
             engine.preview = Mock(
-                return_value={"title": "Original video", "track": "Original track"}
+                return_value=video_metadata(
+                    {
+                        "title": "Original video",
+                        "track": "Original track",
+                        "description": "▶️ ‘LAGIPULA HIDUP AKAN BERAKHIR’ Album",
+                    }
+                )
             )
             jobs = DesktopJobs(settings, engine)
             api = DesktopApi(jobs=jobs)
@@ -156,6 +162,9 @@ class DraftRestartTests(unittest.TestCase):
             self.assertEqual(saved["cover"], selected)
             self.assertEqual(state["status"], "ready")
             self.assertTrue(state["restored"])
+            self.assertEqual(state["metadata"]["album"], "LAGIPULA HIDUP AKAN BERAKHIR")
+            self.assertEqual(state["metadata"]["album_source"], "description")
+            self.assertEqual(saved["tags"]["album"], "Edited album")
             self.assertEqual(list((root / "audio").iterdir()), [])
             resumed_engine.preview.assert_not_called()
             resumed_api.start_download(

@@ -107,6 +107,24 @@ class TagIntegrationTests(unittest.TestCase):
         self.root = Path(self.temporary.name).resolve()
         self.engine = DownloadEngine(_worker_target=_wave_worker)
 
+    def test_description_detected_album_is_written_to_real_mp3(self):
+        metadata = video_metadata(
+            {
+                "title": "Hindia - Berdansalah, Karir Tak Ada Artinya",
+                "description": "▶️ ‘LAGIPULA HIDUP AKAN BERAKHIR’ Album",
+            }
+        )
+        self.assertEqual(metadata["album_source"], "description")
+        result = self.engine.download(
+            URL,
+            directory=self.root,
+            filename="Independent filename",
+            tags=normalize_tags(None, metadata),
+        )
+        tags = ID3(result.path, translate=False)
+        self.assertEqual(str(tags["TALB"]), "LAGIPULA HIDUP AKAN BERAKHIR")
+        self.assertEqual(result.path.name, "Independent filename.mp3")
+
     def test_real_mp3_has_edited_unicode_tags_and_embedded_jpeg_separate_from_filename(self):
         result = self.engine.download(
             URL,
