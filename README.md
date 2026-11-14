@@ -128,7 +128,9 @@ Available music metadata is prefilled. A matching verified or officially branded
 supply the artist; unrelated uploader names are ignored. Song title starts with the parsed title
 and stays independent of filename edits. Year defaults to the video publication year and remains
 editable. Track number accepts digits only and is prefilled when music metadata supplies it.
-Album uses structured music metadata; description-based album detection is not yet enabled.
+Album uses structured music metadata first, then explicit English/Indonesian description labels
+or quoted album phrases. Conflicting or uncertain mentions stay blank. Description suggestions
+are marked for review and remain editable.
 
 Choose **Video thumbnail**, **Local image**, or **No cover**. **Choose image…** opens a native file
 picker and previews your selection. JPEG, PNG, and WebP images up to 10 MB and 40 megapixels are

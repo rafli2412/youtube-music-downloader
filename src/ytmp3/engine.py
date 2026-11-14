@@ -133,6 +133,10 @@ def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
     def text(value: Any) -> str | None:
         return value.strip() if isinstance(value, str) and value.strip() else None
 
+    from ytmp3.album import description_album
+
+    structured_album = text(info.get("album"))
+    album = structured_album or description_album(info.get("description"))
     artist = text(info.get("artist"))
     if not artist and isinstance(info.get("artists"), list):
         artist = ", ".join(value for item in info["artists"] if (value := text(item))) or None
@@ -140,7 +144,8 @@ def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
         "title": info.get("title"),
         "track": text(info.get("track")),
         "artist": artist,
-        "album": text(info.get("album")),
+        "album": album,
+        "album_source": "metadata" if structured_album else "description" if album else None,
         "track_number": str(info["track_number"])
         if str(info.get("track_number", "")).isascii()
         and str(info.get("track_number", "")).isdigit()

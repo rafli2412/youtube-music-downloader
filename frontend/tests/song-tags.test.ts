@@ -41,3 +41,12 @@ test('known official branding matches while metadata credits remain intact', () 
   assert.equal(tags.track_number, '12');
   assert.equal(tags.album, 'Album');
 });
+
+test('description album suggestions prefill tags without mutating preview metadata', () => {
+  const video = { ...base, album: 'Description Album', album_source: 'description' as const };
+  const tags = defaultSongTags(video);
+  assert.equal(tags.album, 'Description Album');
+  tags.album = 'Edited Album';
+  assert.equal(video.album, 'Description Album');
+  assert.equal(defaultSongTags({ ...base, album: null }).album, '');
+});

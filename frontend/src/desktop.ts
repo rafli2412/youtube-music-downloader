@@ -108,6 +108,7 @@ export interface Settings { download_directory: string; }
 export type JobStatus = 'idle' | 'ready' | 'resolving' | 'downloading' | 'converting' | 'tagging' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
 export interface VideoMetadata {
   album?: string | null;
+  album_source?: 'metadata' | 'description' | null;
   track_number?: string | null;
   channel_is_verified?: boolean;
   release_year?: string | null;
