@@ -14,6 +14,7 @@ def native_image(source: str) -> bytes:
         raise ValueError("No image data was supplied. Copy the image itself or browse for a file.")
     from AppKit import (
         NSBitmapImageRep,
+        NSDragPboard,
         NSImage,
         NSPasteboard,
         NSPasteboardTypePNG,
@@ -24,7 +25,7 @@ def native_image(source: str) -> bytes:
     board = (
         NSPasteboard.generalPasteboard()
         if source == "paste"
-        else NSPasteboard.pasteboardWithName_("NSDragPboard")
+        else NSPasteboard.pasteboardWithName_(NSDragPboard)
     )
     # Prefer bytes over URLs: a copied Google Images link is not an image.
     for kind in (NSPasteboardTypePNG, NSPasteboardTypeTIFF):

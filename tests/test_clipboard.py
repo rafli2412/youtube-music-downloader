@@ -20,6 +20,7 @@ class ClipboardTests(unittest.TestCase):
             NSBitmapImageRep=Mock(),
             NSImage=Mock(),
             NSPasteboard=Mock(),
+            NSDragPboard="Apple CFPasteboard drag",
             NSPasteboardTypePNG="PNG",
             NSPasteboardTypeTIFF="TIFF",
             NSPNGFileType=4,
@@ -37,6 +38,10 @@ class ClipboardTests(unittest.TestCase):
                 patch.dict("sys.modules", {"AppKit": kit}),
             ):
                 self.assertEqual(native_image(source), b"converted png")
+                if source == "drop":
+                    kit.NSPasteboard.pasteboardWithName_.assert_called_once_with(
+                        "Apple CFPasteboard drag"
+                    )
                 kit.NSBitmapImageRep.imageRepWithData_.assert_called_once_with(b"tiff")
 
     def test_missing_and_oversized_images_are_rejected(self):
