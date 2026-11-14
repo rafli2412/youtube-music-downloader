@@ -302,6 +302,8 @@ def launch_desktop(
         icon = resource_root() / icon_directory / icon_name
         if icon.is_file():
             options["icon"] = str(icon)
+        # Keep inspection available in development without opening it on every restart.
+        webview.settings["OPEN_DEVTOOLS_IN_DEBUG"] = False
         webview.start(lifecycle, debug=bool(dev_url), **options)
     finally:
         api._jobs.shutdown()
