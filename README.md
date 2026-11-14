@@ -132,7 +132,10 @@ Album uses structured music metadata first, then explicit English/Indonesian des
 or quoted album phrases. Conflicting or uncertain mentions stay blank. Description suggestions
 are marked for review and remain editable.
 
-Choose **Video thumbnail**, **Select an image**, or **No cover**. The image area lets you browse, drop an image file, or paste a copied image while it is focused.
+Choose **Video thumbnail**, **Select an image**, or **No cover**. The image area lets you browse or drop an image file. Choose **Paste image**, or paste
+while Select an image is active and you are not editing a text field. On macOS, native
+PNG/TIFF clipboard representations are converted to PNG. In a browser, use **Copy Image**
+rather than **Copy Image Address** or **Copy Link**.
 Drag and paste depend on the source app supplying image data; if unavailable, export the image
 and browse for it. Selected images are previewed and preserved with your saved draft. JPEG, PNG, and WebP images up to 10 MB and 40 megapixels are
 supported. Artwork is resized to fit within 1024×1024 without cropping and embedded as a JPEG front

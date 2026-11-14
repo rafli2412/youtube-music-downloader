@@ -15,6 +15,7 @@ export interface DesktopApi {
   clear_draft(): Promise<{ cleared: boolean }>;
   preview_video(url: string): Promise<JobState>;
   start_download(url: string, previewJobId: string, filename?: string, tags?: SongTags): Promise<JobState>;
+  import_native_cover(previewId: string, source: 'paste' | 'drop'): Promise<CoverSelection>;
   import_cover(previewId: string, name: string, encoded: string): Promise<CoverSelection>;
   choose_cover(): Promise<CoverSelection | null>;
   cancel_download(): Promise<JobState>;

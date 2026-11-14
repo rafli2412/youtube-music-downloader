@@ -142,6 +142,19 @@ class DesktopApi:
                 "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
             }
 
+    def import_native_cover(self, preview_id: str, source: str = "paste") -> dict[str, str]:
+        from ytmp3.clipboard import native_image
+
+        state = self._jobs.snapshot()
+        if state["busy"] or not preview_id or state.get("preview_id") != preview_id:
+            raise RuntimeError("Preview a video before choosing its cover.")
+        data = native_image(source)
+        return self.import_cover(
+            preview_id,
+            "Pasted image.png" if source == "paste" else "Dropped image.png",
+            base64.b64encode(data).decode("ascii"),
+        )
+
     def import_cover(self, preview_id: str, name: str, encoded: str) -> dict[str, str]:
         """Accept bounded image bytes from a drop or clipboard, never a supplied path."""
         with self._dialog_lock:
