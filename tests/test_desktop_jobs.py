@@ -150,6 +150,18 @@ class DesktopJobsTests(unittest.TestCase):
             api.start_download(URL, self.jobs.snapshot()["job_id"], tags={"cover": "local"})
         self.assertEqual(self.engine.download.call_count, 1)
 
+    def test_failed_preview_cannot_be_retried_as_an_approved_download(self):
+        self.engine.preview = Mock(side_effect=RuntimeError("Verification required"))
+        api = DesktopApi(jobs=self.jobs)
+        api.preview_video(URL)
+        self.jobs.wait(3)
+        failed = self.jobs.snapshot()
+        self.assertEqual(failed["status"], "failed")
+        self.assertIsNone(failed["preview_id"])
+        with self.assertRaises(RuntimeError):
+            api.start_download(URL, failed["job_id"], "Draft")
+        self.assertFalse(self.engine.running.is_set())
+
     def test_metadata_is_retained_during_conversion_and_snapshots_are_isolated(self):
         metadata = {"title": "A song", "channel": "A channel", "duration": 187}
         self.jobs._progress(DownloadProgress("resolving", metadata=metadata))

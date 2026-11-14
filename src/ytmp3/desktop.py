@@ -29,6 +29,7 @@ class DesktopApi:
         self._dialog_lock = threading.Lock()
         self._cover_data: bytes | None = None
         self._cover_job_id: str | None = None
+        self._cover_name: str | None = None
 
     def get_app_info(self) -> dict[str, str | bool]:
         return app_info()
@@ -46,10 +47,53 @@ class DesktopApi:
     def get_job(self) -> dict[str, Any]:
         return self._jobs.snapshot()
 
+    def get_draft(self) -> dict[str, Any] | None:
+        with self._dialog_lock:
+            saved = self._jobs.drafts.load()
+            if saved is None:
+                return None
+            record, data = saved
+            self._jobs.restore_draft(record)
+            state = self._jobs.snapshot()
+            self._cover_data = data
+            self._cover_job_id = state.get("preview_id") if data else None
+            self._cover_name = record.get("cover_name")
+            cover = None
+            if data:
+                mime = image_mime(data)
+                cover = {
+                    "name": self._cover_name or "Selected cover",
+                    "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+                }
+            return {
+                "url": record["url"],
+                "filename": record["filename"],
+                "tags": record["tags"],
+                "cover": cover,
+                "warning": record.get("warning"),
+            }
+
+    def save_draft(
+        self, url: str, filename: str, tags: dict[str, Any], preview_id: str | None = None
+    ) -> dict[str, bool]:
+        with self._dialog_lock:
+            cover = self._cover_data if self._cover_job_id == preview_id else None
+            self._jobs.save_draft(url, filename, tags, preview_id, cover, self._cover_name)
+            return {"saved": True}
+
+    def clear_draft(self) -> dict[str, bool]:
+        with self._dialog_lock:
+            self._jobs.clear_draft()
+            self._cover_data = None
+            self._cover_name = None
+            self._cover_job_id = None
+            return {"cleared": True}
+
     def preview_video(self, url: str) -> dict[str, Any]:
         with self._dialog_lock:
             state = self._jobs.preview(url)
             self._cover_data = None
+            self._cover_name = None
             self._cover_job_id = None
             return state
 
@@ -67,7 +111,11 @@ class DesktopApi:
     def choose_cover(self) -> dict[str, str] | None:
         with self._dialog_lock:
             state = self._jobs.snapshot()
-            if state["busy"] or state["status"] != "ready":
+            if (
+                state["busy"]
+                or state["status"] not in {"ready", "failed", "cancelled"}
+                or not state.get("preview_id")
+            ):
                 raise RuntimeError("Preview a video before choosing its cover.")
             if self._window is None:
                 raise RuntimeError("The desktop window is not ready.")
@@ -87,7 +135,8 @@ class DesktopApi:
                 raise ValueError("Cover images must be 10 MB or smaller.")
             mime = image_mime(data)
             self._cover_data = data
-            self._cover_job_id = state["job_id"]
+            self._cover_name = path.name
+            self._cover_job_id = state["preview_id"]
             return {
                 "name": path.name,
                 "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
@@ -224,7 +273,7 @@ def launch_desktop(
         # Stop React polling and drain Promise replies before destroying the webview.
         while api._jobs.snapshot()["busy"] and not closed.wait(0.1):
             pass
-        deadline = time.monotonic() + 3
+        deadline = time.monotonic() + 15
         while not closed.is_set() and time.monotonic() < deadline:
             if window.evaluate_js("document.documentElement.dataset.desktopClosing === 'ready'"):
                 break

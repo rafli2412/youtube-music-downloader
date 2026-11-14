@@ -97,6 +97,26 @@ Windows PowerShell:
 5. When finished, select **Open folder** to find the file, or **Convert another video** to clear the
    previous link and result while keeping your selected folder.
 
+Download drafts are automatically saved on this computer as you edit. Your video link, filename,
+song tags, and cover choice are restored after closing and reopening the app. Local artwork is copied
+into the app's private data folder, so moving or deleting the original image does not lose the cover.
+The app flushes the latest edits when closing. On reopening, select **Resume download** when ready;
+it does not start downloading automatically. Any partial audio is cleaned up on close, so resuming
+starts a fresh download using your saved choices rather than continuing partial bytes.
+
+If a download fails, use **Retry download** without filling everything in again. You can edit the
+retained values first. A completed download clears its saved draft. **Clear saved draft** or
+**Convert another video** removes the draft and managed cover copy. Editing the video link replaces
+the old draft with the new one. Save/restore errors are shown in the app; if a saved cover becomes
+unavailable, other edits are restored and you can choose a cover again or select no cover.
+
+Drafts use `download-draft.json` and `draft-covers/` beside the app's settings:
+
+- macOS: `~/Library/Application Support/YouTube Music Downloader/`.
+- Windows: `%APPDATA%/YouTube Music Downloader/`.
+
+Only the current draft is stored. Your completed MP3s are not removed when clearing a draft.
+
 Use **Cancel** to stop a download. Closing the window during a job cancels it and waits for cleanup.
 Existing files are preserved. On Mac, select an MP3 in Finder and press Space to preview it, or open
 it with QuickTime Player.
@@ -205,7 +225,8 @@ Windows PowerShell:
 
 React and CSS changes update immediately without rebuilding. Python and app-icon changes automatically
 close the desktop safely and reopen it; active jobs are cancelled and cleaned up before the restart.
-Python restarts reset the current preview and window state. Close the desktop window or press Ctrl+C
+Python restarts restore the saved draft; an interrupted download needs **Resume download** to start
+again. Close the desktop window or press Ctrl+C
 in the development terminal to stop both processes. Start this mode once instead of running a separate
 Vite server; it uses port 5173.
 

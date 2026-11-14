@@ -7,14 +7,18 @@ import threading
 import unittest
 import zlib
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from mutagen.id3 import ID3, ID3NoHeaderError
 from mutagen.mp3 import MP3
 from test_engine import TOOLS_AVAILABLE, URL, _wave_worker
 
+from ytmp3.desktop import DesktopApi
+from ytmp3.desktop_jobs import DesktopJobs
 from ytmp3.engine import DownloadCancelled, DownloadEngine, DownloadError, video_metadata
 from ytmp3.runtime import tool_path
+from ytmp3.settings import SettingsStore
 from ytmp3.tags import image_mime, normalize_tags, validate_thumbnail_url
 
 
@@ -189,6 +193,77 @@ class TagIntegrationTests(unittest.TestCase):
         self.assertEqual(str(tags["TIT2"]), "Only a title")
         for frame in ("TPE1", "TALB", "TYER", "APIC"):
             self.assertEqual(tags.getall(frame), [])
+
+    def test_failed_download_retry_preserves_filename_tags_and_selected_cover(self):
+        settings = SettingsStore(self.root / "settings.json")
+        settings.set_download_directory(self.root / "audio")
+        jobs = DesktopJobs(settings, self.engine)
+        api = DesktopApi(jobs=jobs)
+        api._window = Mock()
+        self.engine.preview = Mock(
+            return_value={"title": "Original video", "track": "Original song"}
+        )
+        api.preview_video(URL)
+        jobs.wait(3)
+        preview_id = jobs.snapshot()["preview_id"]
+        image_path = self.root / "selected.png"
+        image_path.write_bytes(cover_png())
+        api._window.create_file_dialog.return_value = [str(image_path)]
+        with patch.dict(
+            "sys.modules", {"webview": SimpleNamespace(FileDialog=SimpleNamespace(OPEN=1))}
+        ):
+            selection = api.choose_cover()
+        image_path.unlink()
+        options = {
+            "title": "Edited title",
+            "artist": "Edited artist",
+            "album": "Edited album",
+            "year": "2004",
+            "cover": "local",
+        }
+        retrieve = self.engine._retrieve
+        calls = []
+
+        def fail_once(*args, **kwargs):
+            calls.append(True)
+            if len(calls) == 1:
+                raise DownloadError("Sign in to confirm you're not a bot")
+            return retrieve(*args, **kwargs)
+
+        try:
+            with patch.object(self.engine, "_retrieve", side_effect=fail_once):
+                api.start_download(URL, preview_id, "Edited filename", options)
+                jobs.wait(10)
+                failed = jobs.snapshot()
+                self.assertEqual(failed["status"], "failed")
+                self.assertEqual(failed["preview_id"], preview_id)
+                self.assertEqual(failed["metadata"]["title"], "Original video")
+                self.assertFalse(failed["busy"])
+                self.assertEqual(list((self.root / "audio").iterdir()), [])
+                with self.assertRaises(RuntimeError):
+                    api.start_download(
+                        "https://youtu.be/abcdefghijk", preview_id, "Edited filename", options
+                    )
+                api.start_download(URL, preview_id, "Edited filename", options)
+                jobs.wait(10)
+            completed = jobs.snapshot()
+            self.assertEqual(completed["status"], "complete", completed)
+            path = Path(completed["result"]["path"])
+            self.assertEqual(path.name, "Edited filename.mp3")
+            tags = ID3(path, translate=False)
+            for frame, value in (
+                ("TIT2", "Edited title"),
+                ("TPE1", "Edited artist"),
+                ("TALB", "Edited album"),
+                ("TYER", "2004"),
+            ):
+                self.assertEqual(str(tags[frame]), value)
+            self.assertTrue(tags.getall("APIC")[0].data.startswith(b"\xff\xd8\xff"))
+            self.assertEqual(selection["name"], "selected.png")
+            self.engine.preview.assert_called_once()
+        finally:
+            jobs.shutdown()
+            jobs.wait(10)
 
     def test_disabled_tags_omit_id3_and_keep_audio_playable(self):
         result = self.engine.download(URL, directory=self.root, tags={"enabled": False})

@@ -10,6 +10,9 @@ export interface DesktopApi {
   get_app_info(): Promise<AppInfo>;
   get_settings(): Promise<Settings>;
   get_job(): Promise<JobState>;
+  get_draft(): Promise<SavedDownloadDraft | null>;
+  save_draft(url: string, filename: string, tags: SongTags, previewId?: string | null): Promise<{ saved: boolean }>;
+  clear_draft(): Promise<{ cleared: boolean }>;
   preview_video(url: string): Promise<JobState>;
   start_download(url: string, previewJobId: string, filename?: string, tags?: SongTags): Promise<JobState>;
   choose_cover(): Promise<CoverSelection | null>;
@@ -97,6 +100,7 @@ export interface SongTags {
   year: string;
   cover: 'thumbnail' | 'local' | 'none';
 }
+export interface SavedDownloadDraft { url: string; filename: string; tags: SongTags; cover: CoverSelection | null; warning?: string | null; }
 export interface CoverSelection { name: string; preview: string; }
 
 export interface Settings { download_directory: string; }
@@ -115,6 +119,8 @@ export interface VideoMetadata {
 }
 
 export interface JobState {
+  restored?: boolean;
+  preview_id?: string | null;
   metadata?: VideoMetadata | null;
   job_id: string | null;
   status: JobStatus;

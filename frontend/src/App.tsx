@@ -1,3 +1,5 @@
+import { DraftWriteQueue } from './draft-storage';
+import { reviewablePreview } from './download-draft';
 import { TagEditor } from './TagEditor';
 import { defaultSongTags } from './song-tags';
 import { suggestVideoFilename } from './title';
@@ -25,12 +27,27 @@ export function App() {
   const [pending, setPending] = useState(false);
   const [closing, setClosing] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftStatus, setDraftStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
   const client = useRef<DesktopClient | null>(null);
   const closingRef = useRef(false);
   const epoch = useRef(0);
   const polling = useRef<ReturnType<typeof setTimeout> | null>(null);
   const urlInput = useRef<HTMLInputElement | null>(null);
+  const draftPreview = useRef<string | null>(null);
+  const draftReadyRef = useRef(false);
+  const draftQueue = useRef(new DraftWriteQueue());
+  const latestDraft = useRef({ url, filename, tags, previewId: null as string | null });
+  latestDraft.current = { url, filename, tags, previewId: job.preview_id ?? (job.status === 'ready' ? job.job_id : null) };
+  const persistDraft = useRef<() => Promise<void>>(async () => {});
+  persistDraft.current = async () => {
+    if (!draftReadyRef.current || !client.current) return;
+    const snapshot = latestDraft.current;
+    const task = draftQueue.current.enqueue(() => client.current!.call(api => api.save_draft(snapshot.url, snapshot.filename, snapshot.tags, snapshot.previewId)));
+    await task;
+  };
 
   useEffect(() => {
     let active = true;
@@ -41,8 +58,21 @@ export function App() {
       setAppInfo(info);
       try {
         const settings = await client.current.call(api => api.get_settings());
+        if (active && !closingRef.current) setDirectory(settings.download_directory);
+        let saved;
+        try { saved = await client.current.call(api => api.get_draft()); }
+        catch (failure) { if (active) setDraftError(`Could not restore draft: ${message(failure)}`); throw failure; }
         const state = await client.current.call(api => api.get_job());
-        if (active && !closingRef.current) { setDirectory(settings.download_directory); setJob(state); }
+        if (active && !closingRef.current) {
+          if (saved) {
+            setUrl(saved.url); setFilename(saved.filename); setTags(saved.tags); setCover(saved.cover);
+            draftPreview.current = reviewablePreview(state);
+            latestDraft.current = { url: saved.url, filename: saved.filename, tags: saved.tags, previewId: state.preview_id ?? null };
+            if (saved.warning) setDraftError(saved.warning);
+          }
+          setDirectory(settings.download_directory); setJob(state);
+          draftReadyRef.current = true; setDraftReady(true);
+        }
       } catch (failure) { if (active && !closingRef.current) setError(message(failure)); }
       finally { if (active && !closingRef.current) setInitialized(true); }
     }, failure => {
@@ -54,6 +84,8 @@ export function App() {
       if (polling.current) clearTimeout(polling.current);
       void (async () => {
         await connection.catch(() => undefined);
+        try { await persistDraft.current(); }
+        catch (failure) { setDraftError(`Could not save draft: ${message(failure)}`); }
         await client.current?.close();
         document.documentElement.dataset.desktopClosing = 'ready';
       })();
@@ -80,20 +112,35 @@ export function App() {
   }, [job.busy, closing]);
 
   useEffect(() => {
-    if (job.status === 'ready' && job.metadata?.title) {
+    const previewId = reviewablePreview(job);
+    if (previewId && previewId !== draftPreview.current && job.metadata?.title) {
+      draftPreview.current = previewId;
       setFilename(suggestVideoFilename(job.metadata));
       setTags(defaultSongTags(job.metadata));
       setCover(null);
     }
-  }, [job.status, job.job_id]);
+  }, [job.status, job.job_id, job.preview_id]);
+
+  useEffect(() => {
+    if (!draftReady || closing || job.status === 'complete') return;
+    const timer = setTimeout(() => {
+      setDraftStatus('Saving draft…');
+      void persistDraft.current().then(() => {
+        setDraftStatus(latestDraft.current.url.trim() ? 'Draft saved on this computer.' : '');
+        setDraftError(current => current?.includes('saved cover') && tags.cover === 'local' && !cover ? current : null);
+      }, failure => { setDraftStatus(''); setDraftError(`Could not save draft: ${message(failure)}`); });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [url, filename, tags, cover, job.preview_id, job.status, draftReady, closing]);
 
   const start = async () => {
     if (!client.current || pending || job.busy || closingRef.current) return;
     ++epoch.current;
-    const previewJobId = job.status === 'ready' ? job.job_id : null;
+    const previewJobId = reviewablePreview(job);
     setPending(true); setError(null);
     if (!previewJobId) { setJob(emptyJob); setFilename(''); }
     try {
+      await persistDraft.current();
       const state = await client.current.call(api => previewJobId ? api.start_download(url, previewJobId, filename.trim(), tags) : api.preview_video(url));
       if (!closingRef.current) { setJob(state); if (state.directory) setDirectory(state.directory); }
     } catch (failure) { if (!closingRef.current) setError(message(failure)); }
@@ -134,13 +181,17 @@ export function App() {
     if (pending || job.busy || closingRef.current) return;
     ++epoch.current;
     if (polling.current) clearTimeout(polling.current);
+    const task = draftQueue.current.enqueue(async () => client.current?.call(api => api.clear_draft()));
+    void task.then(() => { draftReadyRef.current = true; setDraftReady(true); setDraftError(null); setDraftStatus(''); }, failure => setDraftError(`Could not clear draft: ${message(failure)}`));
     setUrl('');
     setFilename('');
+    setTags(defaultSongTags()); setCover(null); draftPreview.current = null;
     setJob(emptyJob);
     setError(null);
     urlInput.current?.focus();
   };
   const disabled = !appInfo || !initialized || pending || closing;
+  const canReview = Boolean(reviewablePreview(job));
   const originalTitle = job.metadata?.title ?? '';
   const parsedTitle = job.metadata ? suggestVideoFilename(job.metadata) : originalTitle;
   const useParsedTitle = filename === originalTitle && parsedTitle !== originalTitle;
@@ -159,21 +210,24 @@ export function App() {
         <div className="card-heading"><h2 id="download-heading">Start with a link</h2><span className="format-label">MP3</span></div>
         <form onSubmit={event => { event.preventDefault(); void start(); }}>
           <label htmlFor="video-url">Video or song link</label>
-          <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => { ++epoch.current; setUrl(event.target.value); setFilename(''); setJob(emptyJob); setError(null); }} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
+          <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => { ++epoch.current; setUrl(event.target.value); setFilename(''); setTags(defaultSongTags()); setCover(null); draftPreview.current = null; setJob(emptyJob); setError(null); }} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
           <div className="folder-row"><div className="folder-copy"><span className="folder-label">Save to</span><span id="download-directory" className="folder-path" title={directory ?? ''}>{directory ?? 'Your default download folder'}</span></div><button id="choose-folder" className="secondary-button" type="button" onClick={() => void chooseFolder()} disabled={disabled || job.busy}>Choose folder</button></div>
           <p className="folder-hint">Remembered for future downloads, including the terminal app.</p>
-          {job.status === 'ready' && job.metadata && <div className="video-preview"><p className="status-heading">Is this the video you want?</p><VideoDetails video={job.metadata} /><div className="filename-heading"><label htmlFor="download-filename">Filename (optional)</label><button id="restore-filename" className="secondary-button" type="button" disabled={disabled || filename === filenameTarget} onClick={() => setFilename(filenameTarget)}>{useParsedTitle ? 'Use parsed title' : 'Restore original'}</button></div><div className="filename-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><TagEditor value={tags} onChange={setTags} cover={cover} thumbnail={job.metadata.thumbnail} onChooseCover={() => void chooseCover()} disabled={disabled} /><p className="status-detail">No audio has been downloaded. Review the details before continuing.</p></div>}
-          <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim() || (job.status === 'ready' && tags.enabled && tags.cover === 'local' && !cover)}>{pending && !job.busy ? 'Please wait…' : job.status === 'ready' ? 'Download MP3' : 'Preview video'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
+          {canReview && job.metadata && <div className="video-preview"><p className="status-heading">{job.status === 'ready' ? job.restored ? 'Saved download restored' : 'Is this the video you want?' : 'Review your details and retry'}</p><VideoDetails video={job.metadata} /><div className="filename-heading"><label htmlFor="download-filename">Filename (optional)</label><button id="restore-filename" className="secondary-button" type="button" disabled={disabled || filename === filenameTarget} onClick={() => setFilename(filenameTarget)}>{useParsedTitle ? 'Use parsed title' : 'Restore original'}</button></div><div className="filename-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><TagEditor value={tags} onChange={setTags} cover={cover} thumbnail={job.metadata.thumbnail} onChooseCover={() => void chooseCover()} disabled={disabled} /><p className="status-detail">{job.status === 'ready' ? 'No audio has been downloaded. Review the details before continuing.' : 'Your filename, tags, and cover are kept. You can edit them or retry the download.'}</p></div>}
+          <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim() || (canReview && tags.enabled && tags.cover === 'local' && !cover)}>{pending || job.busy ? 'Please wait…' : canReview ? job.status === 'ready' ? job.restored ? 'Resume download' : 'Download MP3' : 'Retry download' : 'Preview video'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
         </form>
         {((job.status !== 'idle' && job.status !== 'ready') || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">
           <p className="status-heading" role="status" aria-live="polite">{status}</p>
-          {job.metadata && <VideoDetails video={job.metadata} />}
+          {!canReview && job.metadata && <VideoDetails video={job.metadata} />}
           {job.busy && <progress max={1} value={fraction ?? undefined} aria-label={status} />}
           {job.result && job.status === 'complete' && <div className="result"><p className="result-title">{job.result.title}</p><p className="result-path">{job.result.path}</p><button id="open-folder" type="button" className="secondary-button" onClick={() => void openFolder()} disabled={disabled}>Open folder</button><button id="convert-another" type="button" className="secondary-button" onClick={convertAnother} disabled={disabled}>Convert another video</button></div>}
-          {job.status === 'cancelled' && <p className="status-detail">Temporary files have been removed. Paste another link to try again.</p>}
+          {job.status === 'cancelled' && <p className="status-detail">{canReview ? 'Temporary files have been removed. Your edits are kept for retry.' : 'Temporary files have been removed. Paste another link to try again.'}</p>}
           {job.error && <p className="error-message" role="alert">{job.error}</p>}
         </div>}
         {error && <p className="error-message" role="alert">{error}</p>}
+        {draftStatus && <p className="folder-hint" role="status">{draftStatus}</p>}
+        {draftError && <p className="error-message" role="alert">{draftError}</p>}
+        {(url.trim() || draftError) && !job.busy && <button type="button" className="secondary-button" disabled={disabled} onClick={convertAnother}>Clear saved draft</button>}
       </section>
       <div className="quiet-details"><span>One link at a time</span><span className="detail-dot" aria-hidden="true" /><span>Just the audio</span><span className="detail-dot" aria-hidden="true" /><span>On your computer</span></div>
     </main>
