@@ -64,6 +64,13 @@ def description_album(description: Any) -> str | None:
             add(quoted[0] if quoted and not quoted[1].strip() else None)
         else:
             add(value)
+    # Some official descriptions put the quoted name before the album label.
+    # Require a complete heading, not a playlist title or an arbitrary prose mention.
+    for line in description.splitlines():
+        heading = re.sub(r"^[ \t]*(?:▶\ufe0f?|►|▸)[ \t]*", "", line).strip()
+        quoted = _quoted(heading)
+        if quoted and re.fullmatch(r"[ \t]+album[ \t]*", quoted[1], re.I):
+            add(quoted[0])
     for match in _PHRASE.finditer(description):
         # Negated references do not establish the recording's album.
         prefix = description[max(0, match.start() - 30) : match.start()]

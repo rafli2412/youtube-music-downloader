@@ -51,6 +51,21 @@ class AlbumTests(unittest.TestCase):
             with self.subTest(description=description):
                 self.assertIsNone(description_album(description))
 
+    def test_hindia_quoted_album_heading(self):
+        heading = "▶️ ‘LAGIPULA HIDUP AKAN BERAKHIR’ Album"
+        self.assertEqual(
+            video_metadata({"description": heading})["album"],
+            "LAGIPULA HIDUP AKAN BERAKHIR",
+        )
+        self.assertEqual(video_metadata({"description": heading})["album_source"], "description")
+        self.assertIsNone(description_album(heading + "\nAlbum: A different album"))
+        for unrelated in (
+            "‘Some Album’ Album Playlist",
+            "My favourite ‘Some Album’ Album",
+            "‘Some Album’ Album review",
+        ):
+            self.assertIsNone(description_album(unrelated))
+
     def test_structured_album_wins_and_source_is_reported(self):
         result = video_metadata({"album": " Structured ", "description": "Album: Other"})
         self.assertEqual(result["album"], "Structured")
