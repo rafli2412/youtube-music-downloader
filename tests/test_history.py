@@ -88,6 +88,34 @@ class HistoryTests(unittest.TestCase):
         self.assertNotIn(oldest, ids)
         self.assertIsNone(second["next_cursor"])
 
+    def test_removing_one_search_result_keeps_other_records_and_every_audio_file(self):
+        other_audio = self.root / "Other recording.mp3"
+        other_audio.write_bytes(b"Other MP3 contents stay unchanged")
+        self.store.add(other_audio, "Unrelated download", URL)
+        kept_match = self.store.add(self.audio, "Matching original", URL)
+        removed_match = self.store.add(self.audio, "Matching alternate", URL)
+        self.store.add(other_audio, "Another unrelated download", URL)
+        before = self.store.page()["entries"]
+        fingerprints = {
+            path: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (self.audio, other_audio)
+        }
+        api = DesktopApi(jobs=DesktopJobs(self.settings))
+        self.assertEqual(
+            [row["id"] for row in api.get_history(None, "MATCHING")["entries"]],
+            [removed_match, kept_match],
+        )
+        api.remove_history(removed_match)
+        self.assertEqual(
+            [row["id"] for row in api.get_history(None, "MATCHING")["entries"]], [kept_match]
+        )
+        expected = [row for row in before if row["id"] != removed_match]
+        self.assertEqual(api.get_history(None, "")["entries"], expected)
+        reopened = DesktopApi(jobs=DesktopJobs(SettingsStore(self.settings.path)))
+        self.assertEqual(reopened.get_history()["entries"], expected)
+        for path, fingerprint in fingerprints.items():
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), fingerprint)
+
     def test_reopen_remove_and_clear_never_change_audio(self):
         first = self.store.add(self.audio, "Song title, not filename", URL)
         second = self.store.add(self.audio, "Another download", URL)
