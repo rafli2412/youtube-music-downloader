@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from 'react';
 
-/** Native hover help plus the same description on keyboard focus. */
+/** Shared Album-style hover and keyboard-focus help. */
 export function TooltipButton({ tooltip, type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { tooltip: string }) {
-  return <button {...props} type={type} title={tooltip} data-tooltip={tooltip} aria-description={tooltip} />;
+  return <button {...props} type={type} data-tooltip={tooltip} aria-description={tooltip} />;
 }
