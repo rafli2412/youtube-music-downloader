@@ -38,6 +38,9 @@ class DesktopApi:
     def remove_history(self, entry_id: int) -> None:
         self._jobs.history.remove(entry_id)
 
+    def remove_history_many(self, entry_ids: list[int]) -> dict[str, int]:
+        return {"removed": self._jobs.history.remove_many(entry_ids)}
+
     def clear_history(self) -> None:
         self._jobs.history.clear()
 

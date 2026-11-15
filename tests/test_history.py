@@ -116,6 +116,39 @@ class HistoryTests(unittest.TestCase):
         for path, fingerprint in fingerprints.items():
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), fingerprint)
 
+    def test_bulk_remove_only_selected_records_and_keeps_shared_audio(self):
+        identities = [self.store.add(self.audio, f"Song {index}", URL) for index in range(5)]
+        original = self.audio.read_bytes()
+        api = DesktopApi(jobs=DesktopJobs(self.settings))
+        self.assertEqual(
+            api.remove_history_many([identities[0], identities[2], identities[2]]), {"removed": 2}
+        )
+        self.assertEqual(
+            [row["id"] for row in api.get_history()["entries"]],
+            [identities[4], identities[3], identities[1]],
+        )
+        self.assertEqual(self.audio.read_bytes(), original)
+        self.assertEqual(api.remove_history_many([]), {"removed": 0})
+        self.assertEqual(api.remove_history_many([identities[0]]), {"removed": 0})
+
+    def test_bulk_validation_and_database_failure_leave_all_records_intact(self):
+        identities = [self.store.add(self.audio, f"Song {index}", URL) for index in range(3)]
+        baseline = self.store.page()["entries"]
+        for invalid in (None, "1,2", [identities[0], True], [identities[0], "2"], [0], [-1]):
+            with self.assertRaises(ValueError):
+                self.store.remove_many(invalid)
+            self.assertEqual(self.store.page()["entries"], baseline)
+        with closing(sqlite3.connect(self.store.path)) as db, db:
+            db.execute(
+                "CREATE TRIGGER reject_removal BEFORE DELETE ON downloads "
+                f"WHEN OLD.id = {identities[1]} "
+                "BEGIN SELECT RAISE(ABORT, 'test rollback'); END"
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.store.remove_many(identities[:2])
+        self.assertEqual(self.store.page()["entries"], baseline)
+        self.assertEqual(self.audio.read_bytes(), b"keep this audio")
+
     def test_reopen_remove_and_clear_never_change_audio(self):
         first = self.store.add(self.audio, "Song title, not filename", URL)
         second = self.store.add(self.audio, "Another download", URL)

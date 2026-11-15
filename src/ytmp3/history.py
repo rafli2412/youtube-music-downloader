@@ -78,6 +78,20 @@ class HistoryStore:
         with self._connect() as db:
             db.execute("DELETE FROM downloads WHERE id = ?", (entry_id,))
 
+    def remove_many(self, entry_ids: list[int]) -> int:
+        if not isinstance(entry_ids, list) or any(
+            type(value) is not int or value < 1 for value in entry_ids
+        ):
+            raise ValueError("Select valid history entries to remove.")
+        identities = list(dict.fromkeys(entry_ids))
+        if not identities:
+            return 0
+        with self._connect() as db:
+            cursor = db.executemany(
+                "DELETE FROM downloads WHERE id = ?", ((value,) for value in identities)
+            )
+            return cursor.rowcount
+
     def clear(self) -> None:
         with self._connect() as db:
             db.execute("DELETE FROM downloads")

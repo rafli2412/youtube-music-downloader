@@ -8,6 +8,7 @@ export interface AppInfo {
 
 export interface DesktopApi {
   get_history(before?: number | null, query?: string): Promise<HistoryPage>;
+  remove_history_many(entryIds: number[]): Promise<{ removed: number }>;
   remove_history(entryId: number): Promise<void>;
   clear_history(): Promise<void>;
   open_history_youtube(entryId: number): Promise<void>;
