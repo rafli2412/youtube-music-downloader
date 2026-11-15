@@ -25,6 +25,14 @@ from typing import Any
 
 from ytmp3.runtime import tool_path
 from ytmp3.settings import SettingsStore, prepare_download_directory
+from ytmp3.tags import (
+    MAX_COVER_BYTES,
+    image_mime,
+    load_thumbnail,
+    normalize_tags,
+    release_year,
+    write_tags,
+)
 from ytmp3.urls import normalize_youtube_url
 
 
@@ -125,6 +133,10 @@ def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
     def text(value: Any) -> str | None:
         return value.strip() if isinstance(value, str) and value.strip() else None
 
+    from ytmp3.album import description_album
+
+    structured_album = text(info.get("album"))
+    album = structured_album or description_album(info.get("description"))
     artist = text(info.get("artist"))
     if not artist and isinstance(info.get("artists"), list):
         artist = ", ".join(value for item in info["artists"] if (value := text(item))) or None
@@ -132,6 +144,14 @@ def video_metadata(info: dict[str, Any]) -> dict[str, Any]:
         "title": info.get("title"),
         "track": text(info.get("track")),
         "artist": artist,
+        "album": album,
+        "album_source": "metadata" if structured_album else "description" if album else None,
+        "track_number": str(info["track_number"])
+        if str(info.get("track_number", "")).isascii()
+        and str(info.get("track_number", "")).isdigit()
+        else "",
+        "channel_is_verified": info.get("channel_is_verified") is True,
+        "release_year": release_year(info),
         "channel": info.get("channel") or info.get("uploader"),
         "duration": info.get("duration"),
         "published_date": info.get("upload_date"),
@@ -145,9 +165,10 @@ def _extract_audio(
 ) -> tuple[dict[str, Any], Path]:
     import yt_dlp
 
+    attempt_options = dict(options)
     for attempt in range(2):
         try:
-            with yt_dlp.YoutubeDL(options) as downloader:
+            with yt_dlp.YoutubeDL(attempt_options) as downloader:
                 info = downloader.extract_info(url, download=download)
                 if not info:
                     raise UnsupportedContent("This item is unavailable or cannot be downloaded.")
@@ -157,9 +178,11 @@ def _extract_audio(
             message = str(error).lower()
             if attempt or not any(text in message for text in ("not a bot", "sign in to confirm")):
                 raise
-            # One fresh guest session after a pause; persistent verification is reported.
-            # The parent can cancel this isolated worker during the wait.
+            # One fresh guest session after a pause, using IPv4 as a bounded routing fallback.
+            # Preserve an explicitly configured interface. The parent can cancel during the wait.
             time.sleep(10)
+            if not options.get("source_address"):
+                attempt_options = {**options, "source_address": "0.0.0.0"}
     raise AssertionError("Unreachable retrieval state")
 
 
@@ -352,6 +375,8 @@ class DownloadEngine:
         on_progress: Callable[[DownloadProgress], None] | None = None,
         cancel: threading.Event | None = None,
         filename: str | None = None,
+        tags: dict[str, Any] | None = None,
+        cover_data: bytes | None = None,
     ) -> DownloadResult:
         if not self._lock.acquire(blocking=False):
             raise DownloadBusy("A download is already running.")
@@ -386,6 +411,15 @@ class DownloadEngine:
                 self._check_cancel(cancellation)
                 notify(DownloadProgress("converting", metadata=item.get("metadata")))
                 mp3 = self._convert(source, temporary, cancellation)
+                metadata = item.get("metadata") or {"title": item["title"]}
+                try:
+                    tag_options = normalize_tags(tags, metadata)
+                    notify(DownloadProgress("tagging"))
+                    self._apply_tags(
+                        mp3, temporary, tag_options, metadata, cover_data, cancellation
+                    )
+                except (ValueError, OSError) as error:
+                    raise DownloadError(f"Cannot write song tags or cover: {error}") from error
                 stem = safe_stem(custom_name or item["title"], item["id"])
                 self._check_cancel(cancellation)
                 result = DownloadResult(
@@ -511,6 +545,83 @@ class DownloadEngine:
         if not valid:
             raise ConversionError("Conversion did not produce a valid MP3 file.")
         return output
+
+    def _apply_tags(
+        self,
+        mp3: Path,
+        directory: Path,
+        options: dict[str, Any],
+        metadata: dict[str, Any],
+        cover_data: bytes | None,
+        cancel: threading.Event,
+    ) -> None:
+        self._check_cancel(cancel)
+        jpeg = None
+        if options["enabled"] and options["cover"] != "none":
+            if options["cover"] == "thumbnail":
+                url = metadata.get("thumbnail")
+                if not url:
+                    raise ValueError("No thumbnail is available. Choose a local image or no cover.")
+                data = load_thumbnail(url, lambda: self._check_cancel(cancel))
+            else:
+                data = cover_data
+                if not data:
+                    raise ValueError("Choose a local cover image before downloading.")
+            if len(data) > MAX_COVER_BYTES:
+                raise ValueError("Cover images must be 10 MB or smaller.")
+            image_mime(data)
+            cover = directory / "cover-image"
+            cover.write_bytes(data)
+            probe = json.loads(
+                self._execute_tool(
+                    "ffprobe",
+                    [
+                        "-v",
+                        "error",
+                        "-select_streams",
+                        "v:0",
+                        "-show_entries",
+                        "stream=width,height",
+                        "-of",
+                        "json",
+                        str(cover),
+                    ],
+                    directory,
+                    cancel,
+                )
+            )
+            streams = probe.get("streams", [])
+            if not streams or not (
+                0 < streams[0].get("width", 0) * streams[0].get("height", 0) <= 40_000_000
+            ):
+                raise ValueError("Choose a cover image of 40 megapixels or smaller.")
+            output = directory / "cover.jpg"
+            self._execute_tool(
+                "ffmpeg",
+                [
+                    "-nostdin",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-protocol_whitelist",
+                    "file,pipe",
+                    "-i",
+                    str(cover),
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    "scale=1024:1024:force_original_aspect_ratio=decrease",
+                    "-q:v",
+                    "2",
+                    str(output),
+                ],
+                directory,
+                cancel,
+            )
+            jpeg = output.read_bytes()
+        self._check_cancel(cancel)
+        write_tags(mp3, options, jpeg)
+        self._check_cancel(cancel)
 
     def _execute_tool(
         self, name: str, arguments: list[str], directory: Path, cancel: threading.Event

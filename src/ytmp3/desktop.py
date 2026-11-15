@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import multiprocessing
 import os
 import platform
@@ -17,6 +18,7 @@ from ytmp3 import APP_NAME, __version__
 from ytmp3.desktop_jobs import DesktopJobs
 from ytmp3.diagnostics import collect_diagnostics, write_report
 from ytmp3.runtime import app_info, frontend_directory, is_packaged, resource_root
+from ytmp3.tags import MAX_COVER_BYTES, image_mime
 
 
 class DesktopApi:
@@ -25,6 +27,9 @@ class DesktopApi:
         self._jobs = jobs if jobs is not None else DesktopJobs()
         self._window: Any = None
         self._dialog_lock = threading.Lock()
+        self._cover_data: bytes | None = None
+        self._cover_job_id: str | None = None
+        self._cover_name: str | None = None
 
     def get_app_info(self) -> dict[str, str | bool]:
         return app_info()
@@ -42,15 +47,149 @@ class DesktopApi:
     def get_job(self) -> dict[str, Any]:
         return self._jobs.snapshot()
 
+    def get_draft(self) -> dict[str, Any] | None:
+        with self._dialog_lock:
+            saved = self._jobs.drafts.load()
+            if saved is None:
+                return None
+            record, data = saved
+            self._jobs.restore_draft(record)
+            state = self._jobs.snapshot()
+            self._cover_data = data
+            self._cover_job_id = state.get("preview_id") if data else None
+            self._cover_name = record.get("cover_name")
+            cover = None
+            if data:
+                mime = image_mime(data)
+                cover = {
+                    "name": self._cover_name or "Selected cover",
+                    "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+                }
+            return {
+                "url": record["url"],
+                "filename": record["filename"],
+                "tags": record["tags"],
+                "cover": cover,
+                "warning": record.get("warning"),
+            }
+
+    def save_draft(
+        self, url: str, filename: str, tags: dict[str, Any], preview_id: str | None = None
+    ) -> dict[str, bool]:
+        with self._dialog_lock:
+            cover = self._cover_data if self._cover_job_id == preview_id else None
+            self._jobs.save_draft(url, filename, tags, preview_id, cover, self._cover_name)
+            return {"saved": True}
+
+    def clear_draft(self) -> dict[str, bool]:
+        with self._dialog_lock:
+            self._jobs.clear_draft()
+            self._cover_data = None
+            self._cover_name = None
+            self._cover_job_id = None
+            return {"cleared": True}
+
     def preview_video(self, url: str) -> dict[str, Any]:
         with self._dialog_lock:
-            return self._jobs.preview(url)
+            state = self._jobs.preview(url)
+            self._cover_data = None
+            self._cover_name = None
+            self._cover_job_id = None
+            return state
 
     def start_download(
-        self, url: str, preview_job_id: str, filename: str | None = None
+        self,
+        url: str,
+        preview_job_id: str,
+        filename: str | None = None,
+        tags: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         with self._dialog_lock:
-            return self._jobs.confirm(url, preview_job_id, filename)
+            cover = self._cover_data if self._cover_job_id == preview_job_id else None
+            return self._jobs.confirm(url, preview_job_id, filename, tags, cover)
+
+    def choose_cover(self) -> dict[str, str] | None:
+        with self._dialog_lock:
+            state = self._jobs.snapshot()
+            if (
+                state["busy"]
+                or state["status"] not in {"ready", "failed", "cancelled"}
+                or not state.get("preview_id")
+            ):
+                raise RuntimeError("Preview a video before choosing its cover.")
+            if self._window is None:
+                raise RuntimeError("The desktop window is not ready.")
+            import webview
+
+            selected = self._window.create_file_dialog(
+                webview.FileDialog.OPEN,
+                allow_multiple=False,
+                file_types=("Images (*.jpg;*.jpeg;*.png;*.webp)",),
+            )
+            if not selected:
+                return None
+            path = Path(selected[0])
+            with path.open("rb") as source:
+                data = source.read(MAX_COVER_BYTES + 1)
+            if len(data) > MAX_COVER_BYTES:
+                raise ValueError("Cover images must be 10 MB or smaller.")
+            mime = image_mime(data)
+            self._cover_data = data
+            self._cover_name = path.name
+            self._cover_job_id = state["preview_id"]
+            return {
+                "name": path.name,
+                "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+            }
+
+    def paste_text(self) -> None:
+        if platform.system() == "Darwin" and self._window is not None:
+            from ytmp3.macos_paste import paste_into_focused_field
+
+            paste_into_focused_field(self._window)
+
+    def import_native_cover(self, preview_id: str, source: str = "paste") -> dict[str, str]:
+        from ytmp3.clipboard import native_image
+
+        state = self._jobs.snapshot()
+        if state["busy"] or not preview_id or state.get("preview_id") != preview_id:
+            raise RuntimeError("Preview a video before choosing its cover.")
+        data = native_image(source)
+        return self.import_cover(
+            preview_id,
+            "Pasted image.png" if source == "paste" else "Dropped image.png",
+            base64.b64encode(data).decode("ascii"),
+        )
+
+    def import_cover(self, preview_id: str, name: str, encoded: str) -> dict[str, str]:
+        """Accept bounded image bytes from a drop or clipboard, never a supplied path."""
+        with self._dialog_lock:
+            state = self._jobs.snapshot()
+            if (
+                state["busy"]
+                or state["status"] not in {"ready", "failed", "cancelled"}
+                or not preview_id
+                or state.get("preview_id") != preview_id
+            ):
+                raise RuntimeError("Preview a video before choosing its cover.")
+            if not isinstance(encoded, str) or len(encoded) > 4 * ((MAX_COVER_BYTES + 2) // 3):
+                raise ValueError("Cover images must be 10 MB or smaller.")
+            try:
+                data = base64.b64decode(encoded, validate=True)
+            except ValueError as error:
+                raise ValueError("The image data is invalid.") from error
+            if len(data) > MAX_COVER_BYTES:
+                raise ValueError("Cover images must be 10 MB or smaller.")
+            mime = image_mime(data)
+            self._cover_data = data
+            self._cover_name = (
+                Path(name).name[:255] if isinstance(name, str) and name else "Pasted image"
+            )
+            self._cover_job_id = preview_id
+            return {
+                "name": self._cover_name,
+                "preview": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+            }
 
     def cancel_download(self) -> dict[str, Any]:
         return self._jobs.cancel()
@@ -166,7 +305,14 @@ def launch_desktop(
         close_requested.set()
         return False
 
+    paste_cleanup = None
+
     def lifecycle() -> None:
+        nonlocal paste_cleanup
+        if platform.system() == "Darwin" and not smoke_report:
+            from ytmp3.macos_paste import install_paste_shortcut
+
+            paste_cleanup = install_paste_shortcut(window)
         if smoke_report:
             monitor_frontend()
             return
@@ -183,7 +329,7 @@ def launch_desktop(
         # Stop React polling and drain Promise replies before destroying the webview.
         while api._jobs.snapshot()["busy"] and not closed.wait(0.1):
             pass
-        deadline = time.monotonic() + 3
+        deadline = time.monotonic() + 15
         while not closed.is_set() and time.monotonic() < deadline:
             if window.evaluate_js("document.documentElement.dataset.desktopClosing === 'ready'"):
                 break
@@ -212,8 +358,12 @@ def launch_desktop(
         icon = resource_root() / icon_directory / icon_name
         if icon.is_file():
             options["icon"] = str(icon)
+        # Keep inspection available in development without opening it on every restart.
+        webview.settings["OPEN_DEVTOOLS_IN_DEBUG"] = False
         webview.start(lifecycle, debug=bool(dev_url), **options)
     finally:
+        if paste_cleanup is not None:
+            paste_cleanup()
         api._jobs.shutdown()
         api._jobs.wait()
         closed.set()

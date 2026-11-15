@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "A terminal-first YouTube audio downloader with a React desktop companion."
 readme = "README.md"
 requires-python = ">=3.11,<3.16"
-dependencies = ["yt-dlp[default]==2026.10.26"]
+dependencies = ["yt-dlp[default]==2026.10.26", "mutagen==1.48.1"]
 
 [project.optional-dependencies]
 desktop = ["pywebview==6.2.1"]

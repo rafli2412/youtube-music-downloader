@@ -9,6 +9,7 @@ Use the desktop window or run downloads from your terminal.
 - Follow download progress, cancel a download, and open the destination folder.
 - See the video title, channel, duration, publication date/time, and thumbnail while downloading
   and converting. Exact publication time is shown when YouTube provides it; otherwise the date is used.
+- Edit embedded song title, artist, album, release year, and cover art before downloading.
 - Select **Convert another video** after completion to clear the link and start again.
 
 Packaged apps include Python, FFmpeg/ffprobe, and Deno. You do not need to install these tools or Node.js
@@ -96,9 +97,54 @@ Windows PowerShell:
 5. When finished, select **Open folder** to find the file, or **Convert another video** to clear the
    previous link and result while keeping your selected folder.
 
+Download drafts are automatically saved on this computer as you edit. Your video link, filename,
+song tags, and cover choice are restored after closing and reopening the app. Local artwork is copied
+into the app's private data folder, so moving or deleting the original image does not lose the cover.
+The app flushes the latest edits when closing. On reopening, select **Resume download** when ready;
+it does not start downloading automatically. Any partial audio is cleaned up on close, so resuming
+starts a fresh download using your saved choices rather than continuing partial bytes.
+
+If a download fails, use **Retry download** without filling everything in again. You can edit the
+retained values first. A completed download clears its saved draft. **Clear saved draft** or
+**Convert another video** removes the draft and managed cover copy. Editing the video link replaces
+the old draft with the new one. Save/restore errors are shown in the app; if a saved cover becomes
+unavailable, other edits are restored and you can choose a cover again or select no cover.
+
+Drafts use `download-draft.json` and `draft-covers/` beside the app's settings:
+
+- macOS: `~/Library/Application Support/YouTube Music Downloader/`.
+- Windows: `%APPDATA%/YouTube Music Downloader/`.
+
+Only the current draft is stored. Your completed MP3s are not removed when clearing a draft.
+
 Use **Cancel** to stop a download. Closing the window during a job cancels it and waits for cleanup.
 Existing files are preserved. On Mac, select an MP3 in Finder and press Space to preview it, or open
 it with QuickTime Player.
+
+## Song tags and cover art
+
+After previewing a video, use **Song tags** to edit the song title, artist, album, year, and track number.
+Available music metadata is prefilled. A matching verified or officially branded channel can
+supply the artist; unrelated uploader names are ignored. Song title starts with the parsed title
+and stays independent of filename edits. Year defaults to the video publication year and remains
+editable. Track number accepts digits only and is prefilled when music metadata supplies it.
+Album uses structured music metadata first, then explicit English/Indonesian description labels
+or quoted album phrases. Conflicting or uncertain mentions stay blank. Description suggestions
+are marked for review and remain editable.
+
+Choose **Video thumbnail**, **Select an image**, or **No cover**. The image area lets you browse or drop an image file. Paste with **⌘V** on macOS or **Ctrl+V** on Windows
+while Select an image is active and no editable field is focused. On macOS, native
+PNG/TIFF clipboard representations are converted to PNG. In a browser, use **Copy Image**
+rather than **Copy Image Address** or **Copy Link**.
+Drag and paste depend on the source app supplying image data; if unavailable, export the image
+and browse for it. Selected images are previewed and preserved with your saved draft. JPEG, PNG, and WebP images up to 10 MB and 40 megapixels are
+supported. Artwork is resized to fit within 1024×1024 without cropping and embedded as a JPEG front
+cover. The video thumbnail may not be the actual album cover.
+
+Tags and artwork are included by default using ID3v2.3. Uncheck **Include tags and artwork** to omit
+both. Blank tag fields are omitted. Invalid tag values are reported before downloading; if artwork
+cannot be loaded or processed, the download fails without publishing a partial MP3. Choose another
+image or no cover and try again. Temporary artwork is cleaned up with the download's other work files.
 
 ## Use the terminal app
 
@@ -117,6 +163,9 @@ ytmp3 config show
 
 # Use a different folder for this download only.
 ytmp3 "https://youtu.be/VIDEO_ID" --directory "./my downloads"
+
+# Download without song tags or artwork.
+ytmp3 "https://youtu.be/VIDEO_ID" --no-tags
 
 # Other commands.
 ytmp3           # Prompt for a link in an interactive terminal.
@@ -184,7 +233,8 @@ Windows PowerShell:
 
 React and CSS changes update immediately without rebuilding. Python and app-icon changes automatically
 close the desktop safely and reopen it; active jobs are cancelled and cleaned up before the restart.
-Python restarts reset the current preview and window state. Close the desktop window or press Ctrl+C
+Python restarts restore the saved draft; an interrupted download needs **Resume download** to start
+again. Close the desktop window or press Ctrl+C
 in the development terminal to stop both processes. Start this mode once instead of running a separate
 Vite server; it uses port 5173.
 
@@ -210,8 +260,13 @@ bundled native binaries against the app's declared minimum OS.
   account-restricted content are rejected. A video link containing playlist parameters downloads
   only that video.
 - YouTube may request verification or deny a public video on some networks or in some regions.
-  For a verification rejection, the app waits 10 seconds and retries once with a fresh guest session.
+  For a verification rejection, the app waits 10 seconds and retries once with a fresh guest session
+  over IPv4 (unless a source interface is explicitly configured). This can help with routing-related
+  failures, but cannot guarantee YouTube will accept the request.
   Cancellation remains available during the wait. Persistent verification is reported as an error.
+  This happens before the MP3 is published and is separate from song-tag or artwork errors.
+  If it persists, wait before retrying or try another network; see yt-dlp’s
+  [known YouTube verification issue](https://github.com/yt-dlp/yt-dlp/issues/3766).
   Try another public link or retry later. The app does not support signing in or importing cookies.
 - If a destination cannot be written, choose a local writable folder. Mac destinations must support
   hard links, such as an APFS volume.

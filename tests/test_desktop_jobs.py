@@ -25,7 +25,7 @@ class ControlledEngine:
         self.failure = None
         self.complete_on_cancel = False
 
-    def download(self, url, directory, on_progress, cancel):
+    def download(self, url, directory, on_progress, cancel, tags=None, cover_data=None):
         on_progress(DownloadProgress("downloading", 25, 100))
         self.running.set()
         while not self.finish.wait(0.01):
@@ -45,6 +45,8 @@ class DesktopJobsTests(unittest.TestCase):
         )
         self.assertIn("verification", message)
         self.assertIn("public link", message)
+        self.assertIn("No new MP3 was saved", message)
+        self.assertIn("different network", message)
         self.assertNotIn("cookies", message)
 
     def setUp(self):
@@ -101,6 +103,64 @@ class DesktopJobsTests(unittest.TestCase):
         self.jobs.wait(3)
         self.assertEqual(self.engine.download.call_args.kwargs["filename"], "Custom")
         self.assertEqual(self.jobs.snapshot()["status"], "complete")
+
+    def test_tag_validation_keeps_preview_available_without_starting_audio(self):
+        self.engine.preview = Mock(return_value={"title": "Example"})
+        api = DesktopApi(jobs=self.jobs)
+        api.preview_video(URL)
+        self.jobs.wait(3)
+        preview_id = self.jobs.snapshot()["job_id"]
+        for tags in ({"year": "invalid"}, {"cover": "local"}):
+            with self.subTest(tags=tags), self.assertRaises(ValueError):
+                api.start_download(URL, preview_id, tags=tags)
+            self.assertEqual(self.jobs.snapshot()["status"], "ready")
+            self.assertFalse(self.engine.running.is_set())
+
+    def test_local_cover_is_selected_by_picker_and_bound_to_its_preview(self):
+        from test_tags import cover_png
+
+        self.engine.preview = Mock(return_value={"title": "Example", "track": "Song"})
+        self.engine.download = Mock(
+            return_value=DownloadResult(self.root / "Custom.mp3", "Example", "jNQXAC9IVRw")
+        )
+        api = DesktopApi(jobs=self.jobs)
+        api._window = Mock()
+        api.preview_video(URL)
+        self.jobs.wait(3)
+        path = self.root / "cover.png"
+        data = cover_png()
+        path.write_bytes(data)
+        api._window.create_file_dialog.return_value = [str(path)]
+        with patch.dict(
+            "sys.modules", {"webview": SimpleNamespace(FileDialog=SimpleNamespace(OPEN=1))}
+        ):
+            selected = api.choose_cover()
+        self.assertEqual(selected["name"], "cover.png")
+        self.assertTrue(selected["preview"].startswith("data:image/png;base64,"))
+        path.unlink()  # The selected image is snapshotted rather than reopened later.
+        api.start_download(
+            URL, self.jobs.snapshot()["job_id"], tags={"title": "Edited song", "cover": "local"}
+        )
+        self.jobs.wait(3)
+        self.assertEqual(self.engine.download.call_args.kwargs["cover_data"], data)
+        self.assertEqual(self.engine.download.call_args.kwargs["tags"]["title"], "Edited song")
+        api.preview_video(URL)
+        self.jobs.wait(3)
+        with self.assertRaises(ValueError):
+            api.start_download(URL, self.jobs.snapshot()["job_id"], tags={"cover": "local"})
+        self.assertEqual(self.engine.download.call_count, 1)
+
+    def test_failed_preview_cannot_be_retried_as_an_approved_download(self):
+        self.engine.preview = Mock(side_effect=RuntimeError("Verification required"))
+        api = DesktopApi(jobs=self.jobs)
+        api.preview_video(URL)
+        self.jobs.wait(3)
+        failed = self.jobs.snapshot()
+        self.assertEqual(failed["status"], "failed")
+        self.assertIsNone(failed["preview_id"])
+        with self.assertRaises(RuntimeError):
+            api.start_download(URL, failed["job_id"], "Draft")
+        self.assertFalse(self.engine.running.is_set())
 
     def test_metadata_is_retained_during_conversion_and_snapshots_are_isolated(self):
         metadata = {"title": "A song", "channel": "A channel", "duration": 187}

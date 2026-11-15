@@ -10,8 +10,15 @@ export interface DesktopApi {
   get_app_info(): Promise<AppInfo>;
   get_settings(): Promise<Settings>;
   get_job(): Promise<JobState>;
+  get_draft(): Promise<SavedDownloadDraft | null>;
+  save_draft(url: string, filename: string, tags: SongTags, previewId?: string | null): Promise<{ saved: boolean }>;
+  clear_draft(): Promise<{ cleared: boolean }>;
   preview_video(url: string): Promise<JobState>;
-  start_download(url: string, previewJobId: string, filename?: string): Promise<JobState>;
+  start_download(url: string, previewJobId: string, filename?: string, tags?: SongTags): Promise<JobState>;
+  paste_text(): Promise<void>;
+  import_native_cover(previewId: string, source: 'paste' | 'drop'): Promise<CoverSelection>;
+  import_cover(previewId: string, name: string, encoded: string): Promise<CoverSelection>;
+  choose_cover(): Promise<CoverSelection | null>;
   cancel_download(): Promise<JobState>;
   choose_download_directory(): Promise<Settings>;
   open_download_folder(): Promise<{ ok: boolean }>;
@@ -88,9 +95,26 @@ export function connectDesktop(): Promise<AppInfo> {
   return desktopConnection;
 }
 
+export interface SongTags {
+  enabled: boolean;
+  title: string;
+  artist: string;
+  album: string;
+  year: string;
+  track_number?: string;
+  cover: 'thumbnail' | 'local' | 'none';
+}
+export interface SavedDownloadDraft { url: string; filename: string; tags: SongTags; cover: CoverSelection | null; warning?: string | null; }
+export interface CoverSelection { name: string; preview: string; }
+
 export interface Settings { download_directory: string; }
-export type JobStatus = 'idle' | 'ready' | 'resolving' | 'downloading' | 'converting' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
+export type JobStatus = 'idle' | 'ready' | 'resolving' | 'downloading' | 'converting' | 'tagging' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
 export interface VideoMetadata {
+  album?: string | null;
+  album_source?: 'metadata' | 'description' | null;
+  track_number?: string | null;
+  channel_is_verified?: boolean;
+  release_year?: string | null;
   track?: string | null;
   artist?: string | null;
   title: string | null;
@@ -102,6 +126,8 @@ export interface VideoMetadata {
 }
 
 export interface JobState {
+  restored?: boolean;
+  preview_id?: string | null;
   metadata?: VideoMetadata | null;
   job_id: string | null;
   status: JobStatus;
@@ -141,6 +167,7 @@ export function progressLabel(job: JobState): string {
     case 'resolving': return 'Reading video information…';
     case 'downloading': return job.fraction === null ? 'Downloading audio…' : `Downloading audio · ${Math.round(job.fraction * 100)}%`;
     case 'converting': return 'Converting to MP3…';
+    case 'tagging': return 'Writing song tags and cover…';
     case 'cancelling': return 'Cancelling and cleaning up…';
     case 'complete': return 'Your MP3 is ready';
     case 'cancelled': return 'Download cancelled';

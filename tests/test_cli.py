@@ -69,6 +69,13 @@ class CliTests(unittest.TestCase):
                 prompt.assert_not_called()
                 self.assertNotIn("Traceback", stderr)
 
+    def test_no_tags_option_is_forwarded_to_the_engine(self):
+        with patch.object(cli, "DownloadEngine") as factory:
+            factory.return_value.download.return_value = self.result
+            code, _, _, _ = self.invoke([URL, "--no-tags"])
+        self.assertEqual(code, 0)
+        self.assertEqual(factory.return_value.download.call_args.kwargs["tags"], {"enabled": False})
+
     def test_directory_override_is_per_job_and_does_not_save_settings(self):
         destination = self.root / "one job 音楽"
         with patch.object(cli, "DownloadEngine") as factory:
