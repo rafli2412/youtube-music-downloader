@@ -16,6 +16,7 @@ from typing import TextIO
 
 from ytmp3 import __version__
 from ytmp3.engine import DownloadCancelled, DownloadEngine, DownloadError, DownloadProgress
+from ytmp3.history import HistoryStore
 from ytmp3.settings import SettingsError, SettingsStore
 from ytmp3.urls import InvalidYouTubeURL, normalize_youtube_url
 
@@ -135,7 +136,8 @@ def _download(url: str, directory: Path | None, *, no_tags: bool = False) -> int
     try:
         with _cancel_on_sigint(cancel):
             try:
-                result = DownloadEngine(SettingsStore()).download(
+                settings = SettingsStore()
+                result = DownloadEngine(settings).download(
                     normalized,
                     directory=directory,
                     on_progress=progress,
@@ -148,6 +150,12 @@ def _download(url: str, directory: Path | None, *, no_tags: bool = False) -> int
                 raise
     finally:
         progress.finish()
+    try:
+        HistoryStore(settings.path).add(
+            result.path, getattr(result, "song_title", "") or result.title, normalized
+        )
+    except Exception:
+        print("The MP3 was saved, but its history entry could not be recorded.", file=sys.stderr)
     print(f"Saved: {_display_text(result.path)}")
     return 0
 

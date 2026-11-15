@@ -121,6 +121,23 @@ Use **Cancel** to stop a download. Closing the window during a job cancels it an
 Existing files are preserved. On Mac, select an MP3 in Finder and press Space to preview it, or open
 it with QuickTime Player.
 
+## Download history
+
+Open **History** to see successful downloads from both the desktop and terminal apps, newest first.
+Each entry includes the song title, final filename, YouTube link, full file path, and download time.
+**Open YouTube** opens your browser; **Show in folder** reveals the MP3 in Finder or Explorer.
+Moved or deleted files are marked **File unavailable** and stay in history.
+
+Times use your computer's local timezone: Today, Yesterday, or the weekday for downloads less
+than seven days old; older entries show **DD/MM/YYYY, HH:MM**. Hover over or keyboard-focus
+the timestamp for the full date and timezone. The view loads 100 entries at a time; use
+**Load more** for older records or **Refresh** after a terminal download.
+
+History persists across restarts in `history.sqlite3` beside the settings file. **Remove entry**
+and **Clear history** remove records only; they never delete MP3s. Clear history asks for confirmation.
+Only downloads completed after installing this feature are recorded; failures and cancellations
+are excluded. Song title uses the saved title tag, falling back to the parsed title when available.
+
 ## Song tags and cover art
 
 After previewing a video, use **Song tags** to edit the song title, artist, album, year, and track number.

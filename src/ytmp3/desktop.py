@@ -10,6 +10,7 @@ import platform
 import subprocess
 import threading
 import time
+import webbrowser
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -30,6 +31,35 @@ class DesktopApi:
         self._cover_data: bytes | None = None
         self._cover_job_id: str | None = None
         self._cover_name: str | None = None
+
+    def get_history(self, before: int | None = None) -> dict[str, Any]:
+        return self._jobs.history.page(before)
+
+    def remove_history(self, entry_id: int) -> None:
+        self._jobs.history.remove(entry_id)
+
+    def clear_history(self) -> None:
+        self._jobs.history.clear()
+
+    def open_history_youtube(self, entry_id: int) -> None:
+        from ytmp3.urls import normalize_youtube_url
+
+        entry = self._jobs.history.get(entry_id)
+        webbrowser.open(normalize_youtube_url(entry["url"]))
+
+    def reveal_history_file(self, entry_id: int) -> None:
+        entry = self._jobs.history.get(entry_id)
+        path = Path(entry["path"])
+        if not path.is_file():
+            raise ValueError(
+                "This file was moved or deleted. Its history entry is still available."
+            )
+        if platform.system() == "Darwin":
+            subprocess.run(["/usr/bin/open", "-R", str(path)], check=True, timeout=10)
+        elif platform.system() == "Windows":
+            subprocess.Popen(["explorer.exe", "/select,", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path.parent)])
 
     def get_app_info(self) -> dict[str, str | bool]:
         return app_info()

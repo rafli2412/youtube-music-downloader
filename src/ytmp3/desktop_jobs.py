@@ -10,6 +10,7 @@ from typing import Any
 
 from ytmp3.drafts import DraftError, DraftStore
 from ytmp3.engine import DownloadCancelled, DownloadEngine, DownloadProgress
+from ytmp3.history import HistoryStore
 from ytmp3.settings import SettingsStore
 from ytmp3.tags import normalize_tags
 from ytmp3.urls import normalize_youtube_url
@@ -33,6 +34,7 @@ class DesktopJobs:
     def __init__(self, settings: SettingsStore | None = None, engine: Any = None):
         self._settings = settings if settings is not None else SettingsStore()
         self.drafts = DraftStore(self._settings.path)
+        self.history = HistoryStore(self._settings.path)
         self._engine = engine if engine is not None else DownloadEngine(self._settings)
         self._lock = threading.RLock()
         self._cancel = threading.Event()
@@ -81,6 +83,7 @@ class DesktopJobs:
                 result=None,
                 error=None,
                 restored=False,
+                history_warning=None,
             )
 
     def restore_draft(self, record: dict[str, Any]) -> None:
@@ -168,6 +171,15 @@ class DesktopJobs:
                 raise RuntimeError("Preview this video before downloading it.")
             metadata = copy.deepcopy(self._state["metadata"])
             options = normalize_tags(tags, metadata or {})
+            parsed_title = (tags or {}).get("parsed_title")
+            if parsed_title is not None:
+                if (
+                    not isinstance(parsed_title, str)
+                    or len(parsed_title) > 1000
+                    or "\x00" in parsed_title
+                ):
+                    raise ValueError("Invalid parsed song title.")
+                options["parsed_title"] = parsed_title
             if options["enabled"] and options["cover"] == "local" and not cover_data:
                 raise ValueError("Choose a local cover image before downloading.")
             self._start(
@@ -207,6 +219,7 @@ class DesktopJobs:
                 job_id=uuid.uuid4().hex,
                 preview_id=preview_id,
                 restored=False,
+                history_warning=None,
                 status="resolving",
                 busy=True,
                 downloaded_bytes=0,
@@ -302,7 +315,15 @@ class DesktopJobs:
                 **({"tags": tags} if tags is not None else {}),
                 **({"cover_data": cover_data} if cover_data is not None else {}),
             )
+            history_warning = None
+            try:
+                self.history.add(
+                    result.path, getattr(result, "song_title", "") or result.title, url
+                )
+            except Exception:
+                history_warning = "Your MP3 was saved, but its history entry could not be recorded."
             with self._lock:
+                self._state["history_warning"] = history_warning
                 self._state.update(
                     status="complete",
                     result={
