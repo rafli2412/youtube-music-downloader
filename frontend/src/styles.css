@@ -154,7 +154,6 @@ progress { width: 100%; height: 7px; margin-top: 12px; accent-color: #557b62; }
 .history-remove { padding: 7px; border: 0; background: transparent; color: #94452f; font-size: 11px; cursor: pointer; }
 .history-confirm { border: 1px solid #dce2d7; border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 12px; }
 .history-confirm button + button { margin-left: 8px; }
-.history-entry .result-path { margin: 10px 0 0; }
 
 .history-search { margin: 18px 0; }
 .history-search-controls { display: flex; align-items: center; gap: 8px; }
@@ -167,3 +166,14 @@ progress { width: 100%; height: 7px; margin-top: 12px; accent-color: #557b62; }
 .history-entry-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .history-entry-heading h3 { margin: 0; }
 .history-entry.selected { background: #f5f8f3; }
+
+.history-entry-heading h3 { flex: 1; min-width: 0; }
+.history-entry-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
+.history-icon-wrap { display: inline-flex; flex-shrink: 0; }
+.history-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #526c5d; cursor: pointer; }
+.history-icon-button:hover:not(:disabled) { background: #edf2ea; border-color: #dce2d7; }
+.history-icon-button:disabled { opacity: .4; cursor: default; }
+.history-remove-icon { color: #94452f; }
+.history-entry-heading { align-items: flex-start; }
+.history-entry-heading > .history-select-entry { margin-top: 6px; }
+.history-entry-heading h3 { padding-top: 4px; }
