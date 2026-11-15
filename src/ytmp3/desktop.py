@@ -32,8 +32,8 @@ class DesktopApi:
         self._cover_job_id: str | None = None
         self._cover_name: str | None = None
 
-    def get_history(self, before: int | None = None) -> dict[str, Any]:
-        return self._jobs.history.page(before)
+    def get_history(self, before: int | None = None, query: str = "") -> dict[str, Any]:
+        return self._jobs.history.page(before, query)
 
     def remove_history(self, entry_id: int) -> None:
         self._jobs.history.remove(entry_id)

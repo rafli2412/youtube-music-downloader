@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import unicodedata
 from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -41,13 +42,24 @@ class HistoryStore:
             )
             return int(cursor.lastrowid)
 
-    def page(self, before: int | None = None) -> dict[str, Any]:
+    def page(self, before: int | None = None, query: str = "") -> dict[str, Any]:
         if before is not None and (type(before) is not int or before < 1):
             raise ValueError("Invalid history page.")
+        if not isinstance(query, str) or len(query) > 500:
+            raise ValueError("History searches must be 500 characters or fewer.")
+        needle = unicodedata.normalize("NFKC", query.strip()).casefold()
         with self._connect() as db:
+            db.create_function(
+                "search_text",
+                1,
+                lambda text: unicodedata.normalize("NFKC", text).casefold(),
+                deterministic=True,
+            )
             rows = db.execute(
-                "SELECT * FROM downloads WHERE (? IS NULL OR id < ?) ORDER BY id DESC LIMIT 101",
-                (before, before),
+                "SELECT * FROM downloads WHERE (? IS NULL OR id < ?) "
+                "AND (? = '' OR instr(search_text(song_title), ?) > 0 "
+                "OR instr(search_text(filename), ?) > 0) ORDER BY id DESC LIMIT 101",
+                (before, before, needle, needle, needle),
             ).fetchall()
         entries = [dict(row, available=Path(row["path"]).is_file()) for row in rows[:100]]
         return {"entries": entries, "next_cursor": entries[-1]["id"] if len(rows) > 100 else None}

@@ -49,6 +49,39 @@ class HistoryTests(unittest.TestCase):
         )
         self.assertEqual(fallback_song_title({"track": "Lyrics", "title": "Ignored"}), "Lyrics")
 
+    def test_search_matches_title_or_filename_with_unicode_casefold_and_literal_symbols(self):
+        first = self.store.add(self.root / "My Custom Filename.mp3", "Straße song", URL)
+        second = self.store.add(self.audio, "100%_mix", URL)
+        api = DesktopApi(jobs=DesktopJobs(self.settings))
+        for query in ("STRASSE", "  custom filename  ", "ＭＹ ＣＵＳＴＯＭ"):
+            self.assertEqual(
+                [row["id"] for row in api.get_history(None, query)["entries"]], [first]
+            )
+        for query in ("%", "_mix"):
+            self.assertEqual(
+                [row["id"] for row in self.store.page(query=query)["entries"]], [second]
+            )
+        self.assertEqual(self.store.page(query="' OR 1=1 --")["entries"], [])
+        self.assertEqual(len(self.store.page(query="  ")["entries"]), 2)
+        for invalid in (None, 42, "x" * 501):
+            with self.assertRaises(ValueError):
+                self.store.page(query=invalid)
+
+    def test_search_covers_older_unloaded_records_and_keeps_filtered_pagination(self):
+        oldest = self.store.add(self.audio, "Unique old song", URL)
+        for index in range(105):
+            self.store.add(self.audio, f"Matching song {index}", URL)
+        self.assertNotIn(oldest, [row["id"] for row in self.store.page()["entries"]])
+        self.assertEqual(self.store.page(query="unique old")["entries"][0]["id"], oldest)
+        first = self.store.page(query="matching")
+        second = self.store.page(first["next_cursor"], "matching")
+        ids = [row["id"] for row in first["entries"] + second["entries"]]
+        self.assertEqual(len(first["entries"]), 100)
+        self.assertEqual(len(second["entries"]), 5)
+        self.assertEqual(len(set(ids)), 105)
+        self.assertNotIn(oldest, ids)
+        self.assertIsNone(second["next_cursor"])
+
     def test_reopen_remove_and_clear_never_change_audio(self):
         first = self.store.add(self.audio, "Song title, not filename", URL)
         second = self.store.add(self.audio, "Another download", URL)

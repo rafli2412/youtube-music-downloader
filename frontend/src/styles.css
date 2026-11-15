@@ -155,3 +155,8 @@ progress { width: 100%; height: 7px; margin-top: 12px; accent-color: #557b62; }
 .history-confirm { border: 1px solid #dce2d7; border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 12px; }
 .history-confirm button + button { margin-left: 8px; }
 .history-entry .result-path { margin: 10px 0 0; }
+
+.history-search { margin: 18px 0; }
+.history-search-controls { display: flex; align-items: center; gap: 8px; }
+.history-search input { padding: 0 12px; min-width: 0; flex: 1; }
+.history-search-controls button { flex-shrink: 0; }

@@ -131,7 +131,9 @@ Moved or deleted files are marked **File unavailable** and stay in history.
 Times use your computer's local timezone: Today, Yesterday, or the weekday for downloads less
 than seven days old; older entries show **DD/MM/YYYY, HH:MM**. Hover over or keyboard-focus
 the timestamp for the full date and timezone. The view loads 100 entries at a time; use
-**Load more** for older records or **Refresh** after a terminal download.
+**Load more** for older records or **Refresh** after a terminal download. Search by song title
+or filename across all saved records, regardless of which page is loaded. Searches ignore case
+and match literal text; **Clear search** returns to the full history.
 
 History persists across restarts in `history.sqlite3` beside the settings file. **Remove entry**
 and **Clear history** remove records only; they never delete MP3s. Clear history asks for confirmation.
