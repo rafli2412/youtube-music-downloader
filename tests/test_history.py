@@ -1,15 +1,18 @@
 """History persistence, pagination, safe deletion, and success-only integration."""
 
+import hashlib
+import io
 import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
+from contextlib import closing, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 from test_engine import TOOLS_AVAILABLE, URL, _wave_worker
 
+from ytmp3 import cli
 from ytmp3.desktop import DesktopApi
 from ytmp3.desktop_jobs import DesktopJobs
 from ytmp3.engine import DownloadEngine, DownloadError
@@ -122,6 +125,60 @@ class HistoryTests(unittest.TestCase):
             self.store.clear()
         with closing(sqlite3.connect(self.store.path)) as db, db:
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 99)
+
+    @unittest.skipUnless(TOOLS_AVAILABLE, "Native runtime tools required")
+    def test_gui_and_terminal_history_survive_reopen_and_removal_keeps_real_mp3s(self):
+        self.settings.set_download_directory(self.root / "audio")
+        engine = DownloadEngine(self.settings, _worker_target=_wave_worker)
+        engine.preview = Mock(return_value={"title": "Original video"})
+        jobs = DesktopJobs(self.settings, engine)
+        api = DesktopApi(jobs=jobs)
+        api.preview_video(URL)
+        jobs.wait(3)
+        api.start_download(
+            URL,
+            api.get_job()["preview_id"],
+            "GUI filename",
+            {"title": "GUI edited title", "cover": "none"},
+        )
+        jobs.wait(10)
+        self.assertEqual(api.get_job()["status"], "complete")
+        jobs.shutdown()
+        jobs.wait(3)
+        with (
+            patch.object(cli, "SettingsStore", return_value=self.settings),
+            patch.object(
+                cli,
+                "DownloadEngine",
+                side_effect=lambda store: DownloadEngine(store, _worker_target=_wave_worker),
+            ),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(["download", URL]), 0)
+        reopened = DesktopApi(jobs=DesktopJobs(SettingsStore(self.settings.path)))
+        records = reopened.get_history()["entries"]
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[1]["song_title"], "GUI edited title")
+        self.assertEqual(records[1]["filename"], "GUI filename.mp3")
+        originals = {
+            Path(row["path"]): hashlib.sha256(Path(row["path"]).read_bytes()).hexdigest()
+            for row in records
+        }
+        self.assertEqual(len(originals), 2)
+        reopened.remove_history(records[0]["id"])
+        self.assertEqual(len(reopened.get_history()["entries"]), 1)
+        for path, fingerprint in originals.items():
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), fingerprint)
+        reopened.clear_history()
+        self.assertEqual(
+            DesktopApi(jobs=DesktopJobs(SettingsStore(self.settings.path))).get_history()[
+                "entries"
+            ],
+            [],
+        )
+        for path, fingerprint in originals.items():
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), fingerprint)
 
     @unittest.skipUnless(TOOLS_AVAILABLE, "Native runtime tools required")
     def test_completed_desktop_download_records_edited_tag_title_and_disabled_parsed_title(self):
