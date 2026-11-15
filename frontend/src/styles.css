@@ -177,3 +177,7 @@ progress { width: 100%; height: 7px; margin-top: 12px; accent-color: #557b62; }
 .history-entry-heading { align-items: flex-start; }
 .history-entry-heading > .history-select-entry { margin-top: 6px; }
 .history-entry-heading h3 { padding-top: 4px; }
+
+button[data-tooltip] { position: relative; }
+button[data-tooltip]:focus-visible::after { content: attr(data-tooltip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 10; width: max-content; max-width: min(250px, 75vw); padding: 9px 11px; border-radius: 7px; background: #355446; color: #fff; font-size: 11px; font-weight: 400; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; text-align: left; box-shadow: 0 3px 12px #243b3020; pointer-events: none; }
+.history-entry-actions button[data-tooltip]:focus-visible::after { right: 0; left: auto; transform: none; }

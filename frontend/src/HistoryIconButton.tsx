@@ -1,3 +1,4 @@
+import { TooltipButton } from './TooltipButton';
 import type { ButtonHTMLAttributes } from 'react';
 
 type HistoryIcon = 'refresh' | 'remove' | 'folder' | 'youtube' | 'clear-selection' | 'remove-selected';
@@ -15,6 +16,14 @@ function Icon({ name }: { name: HistoryIcon }) {
 }
 
 export function HistoryIconButton({ icon, label, hint, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: HistoryIcon; label: string; hint?: string }) {
-  const tooltip = hint ? `${label}: ${hint}` : label;
-  return <span className="history-icon-wrap" title={tooltip}><button {...props} type="button" className={`history-icon-button ${className}`} aria-label={tooltip} title={tooltip}><Icon name={icon} /></button></span>;
+  const descriptions: Record<HistoryIcon, string> = {
+    refresh: 'Reload saved downloads while keeping the current search. Selection will be cleared.',
+    remove: 'Remove this history entry only. The MP3 file is kept.',
+    folder: 'Show this MP3 in Finder or File Explorer.',
+    youtube: 'Open this video on YouTube in your browser.',
+    'clear-selection': 'Uncheck all selected history entries without removing anything.',
+    'remove-selected': 'Remove the selected history entries only. All MP3 files are kept.',
+  };
+  const tooltip = hint ? `${descriptions[icon]} ${hint}` : descriptions[icon];
+  return <span className="history-icon-wrap" title={tooltip}><TooltipButton tooltip={tooltip} {...props} type="button" className={`history-icon-button ${className}`} aria-label={label}><Icon name={icon} /></TooltipButton></span>;
 }
