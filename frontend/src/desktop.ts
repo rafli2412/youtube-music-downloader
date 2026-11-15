@@ -9,6 +9,8 @@ export interface AppInfo {
 export interface DesktopApi {
   get_history(before?: number | null, query?: string): Promise<HistoryPage>;
   remove_history_many(entryIds: number[]): Promise<{ removed: number }>;
+  remove_history_undoable(entryIds: number[]): Promise<{ removed: number; undo_token: string | null; undo_seconds: number }>;
+  undo_history_removal(token: string): Promise<{ restored: number }>;
   remove_history(entryId: number): Promise<void>;
   clear_history(): Promise<void>;
   open_history_youtube(entryId: number): Promise<void>;
@@ -185,4 +187,4 @@ export function progressLabel(job: JobState): string {
 }
 
 export interface HistoryEntry { id: number; song_title: string; filename: string; url: string; path: string; downloaded_at: string; available: boolean; }
-export interface HistoryPage { entries: HistoryEntry[]; next_cursor: number | null; }
+export interface HistoryPage { entries: HistoryEntry[]; next_cursor: number | null; total: number; }

@@ -140,6 +140,10 @@ and **Clear history** remove records only; they never delete MP3s. Clear history
 Use the row checkboxes and **Remove selected** to remove several records together. **Select loaded
 entries** selects only the currently loaded results, including when searching. Loading more does
 not automatically select new rows; changing the search or refreshing clears the selection.
+The result count includes all matching records, including unloaded pages. After removing one
+or several entries, **Undo** restores the latest removal for 30 seconds while this History view
+remains open. Original IDs, timestamps, and ordering are preserved. Undo is unavailable after
+closing the app or clearing all history; the MP3 files are never changed.
 
 Only downloads completed after installing this feature are recorded; failures and cancellations
 are excluded. Song title uses the saved title tag, falling back to the parsed title when available.

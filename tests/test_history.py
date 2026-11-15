@@ -149,6 +149,66 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(self.store.page()["entries"], baseline)
         self.assertEqual(self.audio.read_bytes(), b"keep this audio")
 
+    def test_result_totals_cover_unloaded_pages_and_count_each_matching_record_once(self):
+        for index in range(105):
+            self.store.add(self.audio, f"Count match {index}", URL)
+        self.store.add(self.root / "Count match filename.mp3", "Unrelated title", URL)
+        self.store.add(self.root / "Count match both.mp3", "Count match both", URL)
+        self.store.add(self.audio, "Outside search", URL)
+        first = self.store.page(query="COUNT MATCH")
+        self.assertEqual(first["total"], 107)
+        self.assertEqual(len(first["entries"]), 100)
+        second = self.store.page(first["next_cursor"], "COUNT MATCH")
+        self.assertEqual(second["total"], 107)
+        self.assertEqual(len(second["entries"]), 7)
+        self.assertEqual(self.store.page(query="")["total"], 108)
+        self.assertEqual(self.store.page(query="absent")["total"], 0)
+
+    def test_undo_individual_and_bulk_restores_exact_records_without_duplicates(self):
+        identities = [self.store.add(self.audio, f"Undo song {index}", URL) for index in range(5)]
+        api = DesktopApi(jobs=DesktopJobs(self.settings))
+        baseline = api.get_history()["entries"]
+        first = api.remove_history_undoable([identities[0]])
+        self.assertEqual(first["removed"], 1)
+        self.assertEqual(api.get_history()["total"], 4)
+        self.assertEqual(api.undo_history_removal(first["undo_token"]), {"restored": 1})
+        self.assertEqual(api.get_history()["entries"], baseline)
+        bulk = api.remove_history_undoable([identities[1], identities[3], identities[1], 999999])
+        self.assertEqual(bulk["removed"], 2)
+        self.assertEqual(api.get_history()["total"], 3)
+        new_id = self.store.add(self.audio, "New download during undo window", URL)
+        new_entry = api.get_history()["entries"][0]
+        self.assertEqual(new_entry["id"], new_id)
+        self.assertEqual(api.undo_history_removal(bulk["undo_token"]), {"restored": 2})
+        self.assertEqual(api.get_history()["entries"], [new_entry] + baseline)
+        with self.assertRaises(ValueError):
+            api.undo_history_removal(bulk["undo_token"])
+        self.assertEqual(api.get_history()["total"], 6)
+        self.assertEqual(self.audio.read_bytes(), b"keep this audio")
+
+    def test_undo_expiration_clear_and_failed_restore_are_safe(self):
+        identity = self.store.add(self.audio, "Song", URL)
+        api = DesktopApi(jobs=DesktopJobs(self.settings))
+        with patch("ytmp3.desktop.time.monotonic", return_value=100):
+            removed = api.remove_history_undoable([identity])
+        with patch("ytmp3.desktop.time.monotonic", return_value=131), self.assertRaises(ValueError):
+            api.undo_history_removal(removed["undo_token"])
+        self.assertEqual(api.get_history()["total"], 0)
+        identity = self.store.add(self.audio, "Another song", URL)
+        removed = api.remove_history_undoable([identity])
+        with (
+            patch.object(api._jobs.history, "restore", side_effect=OSError("Disk full")),
+            self.assertRaises(OSError),
+        ):
+            api.undo_history_removal(removed["undo_token"])
+        self.assertEqual(api.undo_history_removal(removed["undo_token"]), {"restored": 1})
+        removed = api.remove_history_undoable([identity])
+        api.clear_history()
+        with self.assertRaises(ValueError):
+            api.undo_history_removal(removed["undo_token"])
+        self.assertEqual(api.get_history()["total"], 0)
+        self.assertEqual(self.audio.read_bytes(), b"keep this audio")
+
     def test_reopen_remove_and_clear_never_change_audio(self):
         first = self.store.add(self.audio, "Song title, not filename", URL)
         second = self.store.add(self.audio, "Another download", URL)

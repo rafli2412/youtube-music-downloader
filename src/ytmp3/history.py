@@ -55,6 +55,13 @@ class HistoryStore:
                 lambda text: unicodedata.normalize("NFKC", text).casefold(),
                 deterministic=True,
             )
+            db.execute("BEGIN")
+            total = db.execute(
+                "SELECT count(*) FROM downloads WHERE "
+                "(? = '' OR instr(search_text(song_title), ?) > 0 "
+                "OR instr(search_text(filename), ?) > 0)",
+                (needle, needle, needle),
+            ).fetchone()[0]
             rows = db.execute(
                 "SELECT * FROM downloads WHERE (? IS NULL OR id < ?) "
                 "AND (? = '' OR instr(search_text(song_title), ?) > 0 "
@@ -62,7 +69,11 @@ class HistoryStore:
                 (before, before, needle, needle, needle),
             ).fetchall()
         entries = [dict(row, available=Path(row["path"]).is_file()) for row in rows[:100]]
-        return {"entries": entries, "next_cursor": entries[-1]["id"] if len(rows) > 100 else None}
+        return {
+            "entries": entries,
+            "next_cursor": entries[-1]["id"] if len(rows) > 100 else None,
+            "total": total,
+        }
 
     def get(self, entry_id: int) -> dict[str, Any]:
         if type(entry_id) is not int or entry_id < 1:
@@ -89,6 +100,43 @@ class HistoryStore:
         with self._connect() as db:
             cursor = db.executemany(
                 "DELETE FROM downloads WHERE id = ?", ((value,) for value in identities)
+            )
+            return cursor.rowcount
+
+    def take_for_undo(self, entry_ids: list[int]) -> list[dict[str, Any]]:
+        """Snapshot and remove records in one transaction; snapshots stay in app memory."""
+        if not isinstance(entry_ids, list) or any(
+            type(value) is not int or value < 1 for value in entry_ids
+        ):
+            raise ValueError("Select valid history entries to remove.")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = []
+            for identity in dict.fromkeys(entry_ids):
+                row = db.execute("SELECT * FROM downloads WHERE id = ?", (identity,)).fetchone()
+                if row is not None:
+                    rows.append(dict(row))
+            db.executemany("DELETE FROM downloads WHERE id = ?", ((row["id"],) for row in rows))
+            return rows
+
+    def restore(self, rows: list[dict[str, Any]]) -> int:
+        """Restore trusted server-side snapshots with their original IDs and timestamps."""
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            cursor = db.executemany(
+                "INSERT OR IGNORE INTO downloads(id,song_title,filename,url,path,downloaded_at) "
+                "VALUES(?,?,?,?,?,?)",
+                (
+                    (
+                        row["id"],
+                        row["song_title"],
+                        row["filename"],
+                        row["url"],
+                        row["path"],
+                        row["downloaded_at"],
+                    )
+                    for row in rows
+                ),
             )
             return cursor.rowcount
 
