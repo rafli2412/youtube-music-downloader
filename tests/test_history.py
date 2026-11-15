@@ -68,11 +68,17 @@ class HistoryTests(unittest.TestCase):
                 self.store.page(query=invalid)
 
     def test_search_covers_older_unloaded_records_and_keeps_filtered_pagination(self):
-        oldest = self.store.add(self.audio, "Unique old song", URL)
+        oldest = self.store.add(self.root / "Rare old filename.mp3", "Unique old song", URL)
         for index in range(105):
             self.store.add(self.audio, f"Matching song {index}", URL)
         self.assertNotIn(oldest, [row["id"] for row in self.store.page()["entries"]])
         self.assertEqual(self.store.page(query="unique old")["entries"][0]["id"], oldest)
+        self.assertEqual(self.store.page(query="RARE OLD FILENAME")["entries"][0]["id"], oldest)
+        unfiltered = self.store.page(query="")
+        restored = unfiltered["entries"] + self.store.page(unfiltered["next_cursor"], "")["entries"]
+        self.assertEqual(len(restored), 106)
+        self.assertEqual(len({row["id"] for row in restored}), 106)
+        self.assertIn(oldest, [row["id"] for row in restored])
         first = self.store.page(query="matching")
         second = self.store.page(first["next_cursor"], "matching")
         ids = [row["id"] for row in first["entries"] + second["entries"]]
