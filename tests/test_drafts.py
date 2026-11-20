@@ -145,7 +145,8 @@ class DraftRestartTests(unittest.TestCase):
                 selected = api.choose_cover()
             with patch("ytmp3.clipboard.native_image", return_value=cover_png()):
                 selected = api.import_native_cover(identity, "paste")
-            api.save_draft(URL, "Edited filename", options(), identity)
+            trim = {"start": 0.02, "end": 0.12}
+            api.save_draft(URL, "Edited filename", options(), identity, trim)
             local.unlink()
             jobs.shutdown()
             jobs.wait(3)
@@ -161,6 +162,7 @@ class DraftRestartTests(unittest.TestCase):
             self.assertEqual(saved["url"], URL)
             self.assertEqual(saved["filename"], "Edited filename")
             self.assertEqual(saved["tags"], options())
+            self.assertEqual(saved["trim"], trim)
             self.assertEqual(saved["cover"], selected)
             self.assertEqual(state["status"], "ready")
             self.assertTrue(state["restored"])
@@ -170,7 +172,7 @@ class DraftRestartTests(unittest.TestCase):
             self.assertEqual(list((root / "audio").iterdir()), [])
             resumed_engine.preview.assert_not_called()
             resumed_api.start_download(
-                saved["url"], state["preview_id"], saved["filename"], saved["tags"]
+                saved["url"], state["preview_id"], saved["filename"], saved["tags"], saved["trim"]
             )
             resumed_jobs.wait(10)
             completed = resumed_jobs.snapshot()

@@ -93,7 +93,11 @@ Windows PowerShell:
    Ambiguous song names such as “Lyrics” and “Video” are preserved, and running cleanup
    again leaves the suggestion unchanged. The app adds `.mp3` and numbers duplicate names automatically.
    Select **Download MP3**. Editing the link clears the preview
-   and requires a new review. Previewing does not download the audio.
+   and requires a new review. **Preview video** loads metadata only. To cut an intro or outro,
+   select **Listen & trim** to load temporary audio. Use the timeline or enter start and end
+   times (such as `0:12.4`), then play the selection or check either cut. **Reset trim** keeps
+   the full track. Trim points are saved with the draft. Audio loaded during the current
+   session is reused when you save the MP3.
 5. When finished, select **Open folder** to find the file, or **Convert another video** to clear the
    previous link and result while keeping your selected folder.
 

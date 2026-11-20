@@ -184,3 +184,15 @@ button[data-tooltip]:hover::after, button[data-tooltip]:focus-visible::after { c
 
 .history-count { font-size: 11px; color: #6b786d; margin: -5px 0 14px; }
 .history-undo { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 12px; margin: 12px 0; border-radius: 7px; background: #eaf1e8; color: #355446; font-size: 12px; }
+
+.trim-editor { margin: 16px 0; }
+.trim-editor audio { display: block; width: 100%; margin-bottom: 12px; }
+.trim-editor fieldset { border: 1px solid #dce2d7; border-radius: 8px; padding: 12px; min-width: 0; }
+.trim-editor legend { color: #455c4d; font-size: 12px; padding: 0 4px; }
+.trim-boundary { display: grid; grid-template-columns: 32px minmax(0, 1fr) 72px; gap: 8px; align-items: center; }
+.trim-boundary label { margin: 0; }
+.trim-boundary input { min-width: 0; padding: 0 8px; height: 32px; }
+.trim-boundary input[type="range"] { padding: 0; accent-color: #355446; }
+.trim-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.trim-track { position: relative; height: 5px; margin: 4px 0 8px; background: #e2e6dc; border-radius: 4px; }
+.trim-track > div { position: absolute; inset-block: 0; background: #355446; border-radius: inherit; }

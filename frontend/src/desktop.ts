@@ -18,11 +18,13 @@ export interface DesktopApi {
   get_app_info(): Promise<AppInfo>;
   get_settings(): Promise<Settings>;
   get_job(): Promise<JobState>;
+  load_audio_preview(previewId: string): Promise<number>;
+  read_audio_preview(previewId: string, offset: number): Promise<string>;
   get_draft(): Promise<SavedDownloadDraft | null>;
-  save_draft(url: string, filename: string, tags: SongTags, previewId?: string | null): Promise<{ saved: boolean }>;
+  save_draft(url: string, filename: string, tags: SongTags, previewId?: string | null, trim?: AudioTrim | null): Promise<{ saved: boolean }>;
   clear_draft(): Promise<{ cleared: boolean }>;
   preview_video(url: string): Promise<JobState>;
-  start_download(url: string, previewJobId: string, filename?: string, tags?: SongTags): Promise<JobState>;
+  start_download(url: string, previewJobId: string, filename?: string, tags?: SongTags, trim?: AudioTrim | null): Promise<JobState>;
   paste_text(): Promise<void>;
   import_native_cover(previewId: string, source: 'paste' | 'drop'): Promise<CoverSelection>;
   import_cover(previewId: string, name: string, encoded: string): Promise<CoverSelection>;
@@ -113,7 +115,8 @@ export interface SongTags {
   track_number?: string;
   cover: 'thumbnail' | 'local' | 'none';
 }
-export interface SavedDownloadDraft { url: string; filename: string; tags: SongTags; cover: CoverSelection | null; warning?: string | null; }
+export interface AudioTrim { start: number; end: number | null; }
+export interface SavedDownloadDraft { trim?: AudioTrim | null; url: string; filename: string; tags: SongTags; cover: CoverSelection | null; warning?: string | null; }
 export interface CoverSelection { name: string; preview: string; }
 
 export interface Settings { download_directory: string; }

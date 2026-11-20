@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ytmp3.tags import MAX_COVER_BYTES, image_mime
+from ytmp3.trim import trim_points
 
 
 class DraftError(RuntimeError):
@@ -59,6 +60,7 @@ class DraftStore:
             raise DraftError("Invalid saved cover reference.")
         if record.get("cover_name") is not None and not isinstance(record["cover_name"], str):
             raise DraftError("Invalid saved cover name.")
+        trim_points(record.get("trim"))
         return record
 
     def _read(self) -> dict[str, Any] | None:

@@ -1,3 +1,5 @@
+import { TrimEditor } from './TrimEditor';
+import type { AudioTrim } from './desktop';
 import { TooltipButton } from './TooltipButton';
 import { HistoryView } from './HistoryView';
 import { DraftWriteQueue } from './draft-storage';
@@ -22,6 +24,8 @@ export function App() {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [url, setUrl] = useState('');
+  const [trim, setTrim] = useState<AudioTrim | null>(null);
+  const [loadingAudio, setLoadingAudio] = useState(false);
   const [filename, setFilename] = useState('');
   const [tags, setTags] = useState<SongTags>(() => defaultSongTags());
   const [cover, setCover] = useState<CoverSelection | null>(null);
@@ -42,13 +46,13 @@ export function App() {
   const draftPreview = useRef<string | null>(null);
   const draftReadyRef = useRef(false);
   const draftQueue = useRef(new DraftWriteQueue());
-  const latestDraft = useRef({ url, filename, tags, previewId: null as string | null });
-  latestDraft.current = { url, filename, tags, previewId: job.preview_id ?? (job.status === 'ready' ? job.job_id : null) };
+  const latestDraft = useRef({ url, filename, tags, trim, previewId: null as string | null });
+  latestDraft.current = { url, filename, tags, trim, previewId: job.preview_id ?? (job.status === 'ready' ? job.job_id : null) };
   const persistDraft = useRef<() => Promise<void>>(async () => {});
   persistDraft.current = async () => {
     if (!draftReadyRef.current || !client.current) return;
     const snapshot = latestDraft.current;
-    const task = draftQueue.current.enqueue(() => client.current!.call(api => api.save_draft(snapshot.url, snapshot.filename, snapshot.tags, snapshot.previewId)));
+    const task = draftQueue.current.enqueue(() => client.current!.call(api => api.save_draft(snapshot.url, snapshot.filename, snapshot.tags, snapshot.previewId, snapshot.trim)));
     await task;
   };
 
@@ -68,9 +72,9 @@ export function App() {
         const state = await client.current.call(api => api.get_job());
         if (active && !closingRef.current) {
           if (saved) {
-            setUrl(saved.url); setFilename(saved.filename); setTags(saved.tags); setCover(saved.cover);
+            setUrl(saved.url); setFilename(saved.filename); setTags(saved.tags); setTrim(saved.trim ?? null); setCover(saved.cover);
             draftPreview.current = reviewablePreview(state);
-            latestDraft.current = { url: saved.url, filename: saved.filename, tags: saved.tags, previewId: state.preview_id ?? null };
+            latestDraft.current = { url: saved.url, filename: saved.filename, tags: saved.tags, trim: saved.trim ?? null, previewId: state.preview_id ?? null };
             if (saved.warning) setDraftError(saved.warning);
           }
           setDirectory(settings.download_directory); setJob(state);
@@ -134,17 +138,17 @@ export function App() {
       }, failure => { setDraftStatus(''); setDraftError(`Could not save draft: ${message(failure)}`); });
     }, 400);
     return () => clearTimeout(timer);
-  }, [url, filename, tags, cover, job.preview_id, job.status, draftReady, closing]);
+  }, [url, filename, tags, trim, cover, job.preview_id, job.status, draftReady, closing]);
 
   const start = async () => {
-    if (!client.current || pending || job.busy || closingRef.current) return;
+    if (!client.current || pending || loadingAudio || job.busy || closingRef.current) return;
     ++epoch.current;
     const previewJobId = reviewablePreview(job);
     setPending(true); setError(null);
     if (!previewJobId) { setJob(emptyJob); setFilename(''); }
     try {
       await persistDraft.current();
-      const state = await client.current.call(api => previewJobId ? api.start_download(url, previewJobId, filename.trim(), { ...tags, parsed_title: defaultSongTags(job.metadata).title }) : api.preview_video(url));
+      const state = await client.current.call(api => previewJobId ? api.start_download(url, previewJobId, filename.trim(), { ...tags, parsed_title: defaultSongTags(job.metadata).title }, trim) : api.preview_video(url));
       if (!closingRef.current) { setJob(state); if (state.directory) setDirectory(state.directory); }
     } catch (failure) { if (!closingRef.current) setError(message(failure)); }
     finally { if (!closingRef.current) setPending(false); }
@@ -203,12 +207,12 @@ export function App() {
     void task.then(() => { draftReadyRef.current = true; setDraftReady(true); setDraftError(null); setDraftStatus(''); }, failure => setDraftError(`Could not clear draft: ${message(failure)}`));
     setUrl('');
     setFilename('');
-    setTags(defaultSongTags()); setCover(null); draftPreview.current = null;
+    setTags(defaultSongTags()); setTrim(null); setCover(null); draftPreview.current = null;
     setJob(emptyJob);
     setError(null);
     urlInput.current?.focus();
   };
-  const disabled = !appInfo || !initialized || pending || closing;
+  const disabled = !appInfo || !initialized || pending || closing || loadingAudio;
   const canReview = Boolean(reviewablePreview(job));
   const originalTitle = job.metadata?.title ?? '';
   const parsedTitle = job.metadata ? suggestVideoFilename(job.metadata) : originalTitle;
@@ -247,10 +251,10 @@ export function App() {
         <div className="card-heading"><h2 id="download-heading">Start with a link</h2><span className="format-label">MP3</span></div>
         <form onSubmit={event => { event.preventDefault(); void start(); }}>
           <label htmlFor="video-url">Video or song link</label>
-          <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => { ++epoch.current; setUrl(event.target.value); setFilename(''); setTags(defaultSongTags()); setCover(null); draftPreview.current = null; setJob(emptyJob); setError(null); }} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
+          <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => { ++epoch.current; setUrl(event.target.value); setFilename(''); setTags(defaultSongTags()); setTrim(null); setCover(null); draftPreview.current = null; setJob(emptyJob); setError(null); }} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
           <div className="folder-row"><div className="folder-copy"><span className="folder-label">Save to</span><span id="download-directory" className="folder-path" title={directory ?? ''}>{directory ?? 'Your default download folder'}</span></div><TooltipButton tooltip="Choose the default folder for future MP3 downloads." id="choose-folder" className="secondary-button" type="button" onClick={() => void chooseFolder()} disabled={disabled || job.busy}>Choose folder</TooltipButton></div>
           <p className="folder-hint">Remembered for future downloads, including the terminal app.</p>
-          {canReview && job.metadata && <div className="video-preview"><p className="status-heading">{job.status === 'ready' ? job.restored ? 'Saved download restored' : 'Is this the video you want?' : 'Review your details and retry'}</p><VideoDetails video={job.metadata} /><div className="filename-heading"><label htmlFor="download-filename">Filename (optional)</label><TooltipButton tooltip={useParsedTitle ? "Use the cleaned song title as the filename." : "Restore the original YouTube title as the filename."} id="restore-filename" className="secondary-button" type="button" disabled={disabled || filename === filenameTarget} onClick={() => setFilename(filenameTarget)}>{useParsedTitle ? 'Use parsed title' : 'Restore original'}</TooltipButton></div><div className="filename-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><TagEditor suggestedAlbum={job.metadata.album_source === 'description' ? job.metadata.album : null} value={tags} onChange={setTags} cover={cover} thumbnail={job.metadata.thumbnail} onChooseCover={(file, source) => void chooseCover(file, source)} disabled={disabled || view !== 'download'} /><p className="status-detail">{job.status === 'ready' ? 'No audio has been downloaded. Review the details before continuing.' : 'Your filename, tags, and cover are kept. You can edit them or retry the download.'}</p></div>}
+          {canReview && job.metadata && <div className="video-preview"><p className="status-heading">{job.status === 'ready' ? job.restored ? 'Saved download restored' : 'Is this the video you want?' : 'Review your details and retry'}</p><VideoDetails video={job.metadata} />{client.current && job.preview_id && <TrimEditor key={job.preview_id} client={client.current} previewId={job.preview_id} trim={trim} onChange={setTrim} disabled={disabled} onLoading={setLoadingAudio} />}<div className="filename-heading"><label htmlFor="download-filename">Filename (optional)</label><TooltipButton tooltip={useParsedTitle ? "Use the cleaned song title as the filename." : "Restore the original YouTube title as the filename."} id="restore-filename" className="secondary-button" type="button" disabled={disabled || filename === filenameTarget} onClick={() => setFilename(filenameTarget)}>{useParsedTitle ? 'Use parsed title' : 'Restore original'}</TooltipButton></div><div className="filename-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><TagEditor suggestedAlbum={job.metadata.album_source === 'description' ? job.metadata.album : null} value={tags} onChange={setTags} cover={cover} thumbnail={job.metadata.thumbnail} onChooseCover={(file, source) => void chooseCover(file, source)} disabled={disabled || view !== 'download'} /><p className="status-detail">{job.status === 'ready' ? 'Review your choices before saving the MP3.' : 'Your filename, tags, and cover are kept. You can edit them or retry the download.'}</p></div>}
           <div className="action-row"><TooltipButton tooltip={job.busy || pending ? "Wait for the current operation to finish." : canReview ? "Download the reviewed video as an MP3 with your filename, tags, and cover choices." : "Show video details for review before downloading any audio."} id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim() || (canReview && tags.enabled && tags.cover === 'local' && !cover)}>{pending || job.busy ? 'Please wait…' : canReview ? job.status === 'ready' ? job.restored ? 'Resume download' : 'Download MP3' : 'Retry download' : 'Preview video'}</TooltipButton>{job.busy && <TooltipButton tooltip="Stop this download and remove its unfinished audio files." id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</TooltipButton>}</div>
         </form>
         {((job.status !== 'idle' && job.status !== 'ready') || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">

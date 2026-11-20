@@ -13,6 +13,7 @@ from ytmp3.engine import DownloadCancelled, DownloadEngine, DownloadProgress
 from ytmp3.history import HistoryStore
 from ytmp3.settings import SettingsStore
 from ytmp3.tags import normalize_tags
+from ytmp3.trim import trim_points
 from ytmp3.urls import normalize_youtube_url
 
 
@@ -119,6 +120,7 @@ class DesktopJobs:
         preview_id: str | None,
         cover_data: bytes | None = None,
         cover_name: str | None = None,
+        trim: dict[str, Any] | None = None,
     ) -> None:
         with self._lock:
             if (
@@ -144,10 +146,23 @@ class DesktopJobs:
                     "tags": tags,
                     "metadata": copy.deepcopy(self._state["metadata"]) if approved else None,
                     "previewed_url": normalized if approved else None,
+                    "trim": trim if approved else None,
                 },
                 cover_data if approved and tags.get("cover") == "local" else None,
                 cover_name,
             )
+
+    def audio_preview_url(self, preview_id: str) -> str:
+        with self._lock:
+            if (
+                self._closing
+                or self._state["busy"]
+                or not self._preview_url
+                or self._state["preview_id"] != preview_id
+                or self._state["status"] not in {"ready", "failed", "cancelled"}
+            ):
+                raise RuntimeError("Preview this video before loading its audio.")
+            return self._preview_url
 
     def preview(self, url: str) -> dict[str, Any]:
         return self._start(url, preview=True)
@@ -159,6 +174,7 @@ class DesktopJobs:
         filename: str | None = None,
         tags: dict[str, Any] | None = None,
         cover_data: bytes | None = None,
+        trim: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized = normalize_youtube_url(url)
         with self._lock:
@@ -169,6 +185,7 @@ class DesktopJobs:
                 or self._preview_url != normalized
             ):
                 raise RuntimeError("Preview this video before downloading it.")
+            trim_points(trim)
             metadata = copy.deepcopy(self._state["metadata"])
             options = normalize_tags(tags, metadata or {})
             parsed_title = (tags or {}).get("parsed_title")
@@ -189,6 +206,7 @@ class DesktopJobs:
                 tags=options,
                 cover_data=cover_data,
                 preview_id=preview_job_id,
+                trim=trim,
             )
             self._state["metadata"] = metadata
             return self.snapshot()
@@ -205,6 +223,7 @@ class DesktopJobs:
         tags: dict[str, Any] | None = None,
         cover_data: bytes | None = None,
         preview_id: str | None = None,
+        trim: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized = normalize_youtube_url(url)
         with self._lock:
@@ -232,7 +251,7 @@ class DesktopJobs:
             )
             self._thread = threading.Thread(
                 target=self._run,
-                args=(normalized, directory, preview, filename, tags, cover_data),
+                args=(normalized, directory, preview, filename, tags, cover_data, trim),
                 name="ytmp3-desktop-job",
             )
             try:
@@ -289,6 +308,7 @@ class DesktopJobs:
         filename: str | None = None,
         tags: dict[str, Any] | None = None,
         cover_data: bytes | None = None,
+        trim: dict[str, Any] | None = None,
     ) -> None:
         try:
             if preview:
@@ -311,6 +331,7 @@ class DesktopJobs:
                 directory=directory,
                 on_progress=self._progress,
                 cancel=self._cancel,
+                **({"trim": trim} if trim is not None else {}),
                 **({"filename": filename} if filename else {}),
                 **({"tags": tags} if tags is not None else {}),
                 **({"cover_data": cover_data} if cover_data is not None else {}),

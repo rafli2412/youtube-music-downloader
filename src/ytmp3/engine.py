@@ -34,6 +34,7 @@ from ytmp3.tags import (
     release_year,
     write_tags,
 )
+from ytmp3.trim import trim_points
 from ytmp3.urls import normalize_youtube_url
 
 
@@ -334,6 +335,54 @@ class DownloadEngine:
         self.settings = settings or SettingsStore()
         self._worker_target = _worker_target
         self._lock = threading.Lock()
+        self._audio_preview = None
+
+    def clear_audio_preview(self) -> None:
+        if self._audio_preview is not None:
+            self._audio_preview[1].cleanup()
+            self._audio_preview = None
+
+    def prepare_audio_preview(self, url: str, cancel: threading.Event) -> int:
+        normalized = normalize_youtube_url(url)
+        if not self._lock.acquire(blocking=False):
+            raise DownloadBusy("An audio operation is already running.")
+        try:
+            if self._audio_preview and self._audio_preview[0] == normalized:
+                return self._audio_preview[3].stat().st_size
+            self.clear_audio_preview()
+            workspace = tempfile.TemporaryDirectory(
+                prefix="ytmp3-listen-", ignore_cleanup_errors=True
+            )
+            try:
+                directory = Path(workspace.name)
+                item = self._retrieve(normalized, directory, cancel, lambda event: None)
+                source = Path(item["source"])
+                if source.resolve().parent != directory.resolve() or not source.is_file():
+                    raise DownloadError("The audio preview did not produce a complete file.")
+                audio = self._convert(source, directory, cancel)
+                size = audio.stat().st_size
+                if size > 64 * 1024 * 1024:
+                    raise DownloadError(
+                        "This audio is too long to preview. You can still download it."
+                    )
+                self._audio_preview = (normalized, workspace, item, audio)
+                return size
+            except BaseException:
+                workspace.cleanup()
+                raise
+        finally:
+            self._lock.release()
+
+    def read_audio_preview(self, url: str, offset: int) -> bytes:
+        if type(offset) is not int or offset < 0:
+            raise ValueError("Invalid audio preview offset.")
+        normalized = normalize_youtube_url(url)
+        with self._lock:
+            if not self._audio_preview or self._audio_preview[0] != normalized:
+                raise DownloadError("Load the audio preview first.")
+            with self._audio_preview[3].open("rb") as audio:
+                audio.seek(offset)
+                return audio.read(512 * 1024)
 
     @staticmethod
     def _check_cancel(cancel: threading.Event) -> None:
@@ -352,6 +401,7 @@ class DownloadEngine:
             raise DownloadBusy("A download is already running.")
         cancellation = cancel if cancel is not None else threading.Event()
         try:
+            self.clear_audio_preview()
             normalized = normalize_youtube_url(url)
             self._check_cancel(cancellation)
             if not tool_path("deno").is_file():
@@ -379,6 +429,7 @@ class DownloadEngine:
         filename: str | None = None,
         tags: dict[str, Any] | None = None,
         cover_data: bytes | None = None,
+        trim: dict[str, Any] | None = None,
     ) -> DownloadResult:
         if not self._lock.acquire(blocking=False):
             raise DownloadBusy("A download is already running.")
@@ -406,13 +457,22 @@ class DownloadEngine:
             with tempfile.TemporaryDirectory(prefix=".ytmp3-", dir=destination) as work:
                 temporary = Path(work)
                 notify(DownloadProgress("resolving"))
-                item = self._retrieve(normalized, temporary, cancellation, notify)
+                cached = self._audio_preview
+                if cached and cached[0] == normalized:
+                    item = cached[2]
+                    expected_source_directory = Path(cached[1].name)
+                else:
+                    item = self._retrieve(normalized, temporary, cancellation, notify)
+                    expected_source_directory = temporary
                 source = Path(item["source"])
-                if source.resolve().parent != temporary.resolve() or not source.is_file():
+                if (
+                    source.resolve().parent != expected_source_directory.resolve()
+                    or not source.is_file()
+                ):
                     raise DownloadError("The audio download did not produce a complete file.")
                 self._check_cancel(cancellation)
                 notify(DownloadProgress("converting", metadata=item.get("metadata")))
-                mp3 = self._convert(source, temporary, cancellation)
+                mp3 = self._convert(source, temporary, cancellation, trim)
                 metadata = item.get("metadata") or {"title": item["title"]}
                 try:
                     tag_options = normalize_tags(tags, metadata)
@@ -433,6 +493,7 @@ class DownloadEngine:
                     or fallback_song_title(metadata)
                     or item["title"],
                 )
+            self.clear_audio_preview()
             # Publication is the commit point. A late cancellation cannot remove a completed file.
             if on_progress is not None:
                 try:
@@ -503,7 +564,11 @@ class DownloadEngine:
             send.close()
             process.close()
 
-    def _convert(self, source: Path, directory: Path, cancel: threading.Event) -> Path:
+    def _convert(self, source: Path, directory: Path, cancel: threading.Event, trim=None) -> Path:
+        start, end = trim_points(trim)
+        limits = ["-ss", f"{start:.6f}"] if start else []
+        if end is not None:
+            limits += ["-t", f"{end - start:.6f}"]
         output = directory / "converted.mp3"
         self._execute_tool(
             "ffmpeg",
@@ -515,6 +580,7 @@ class DownloadEngine:
                 "-n",
                 "-i",
                 str(source),
+                *limits,
                 "-map",
                 "0:a:0",
                 "-vn",
@@ -537,7 +603,8 @@ class DownloadEngine:
                 "-select_streams",
                 "a:0",
                 "-show_entries",
-                "stream=codec_name",
+                "stream=codec_name,nb_read_frames",
+                *(["-count_frames"] if trim else []),
                 "-of",
                 "json",
                 str(output),
@@ -548,6 +615,8 @@ class DownloadEngine:
         try:
             streams = json.loads(probe).get("streams", [])
             valid = streams and streams[0].get("codec_name") == "mp3" and output.stat().st_size > 0
+            if valid and trim:
+                valid = int(streams[0].get("nb_read_frames", 0)) > 0
         except (ValueError, OSError, TypeError):
             valid = False
         if not valid:

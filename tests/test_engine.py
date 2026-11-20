@@ -12,6 +12,7 @@ import time
 import unittest
 import wave
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -102,6 +103,33 @@ class EngineIntegrationTests(unittest.TestCase):
 
     def assert_destination_has_only(self, *paths):
         self.assertEqual(set(self.destination.iterdir()), set(paths))
+
+    def test_trim_reuses_preview_source_and_exports_only_selected_audio(self):
+        cancel = threading.Event()
+        size = self.engine.prepare_audio_preview(URL, cancel)
+        self.addCleanup(self.engine.clear_audio_preview)
+        self.assertEqual(len(self.engine.read_audio_preview(URL, 0)), size)
+        self.assert_destination_has_only()
+        with patch.object(self.engine, "_retrieve", side_effect=AssertionError("Second download")):
+            result = self.engine.download(URL, trim={"start": 0.02, "end": 0.12})
+        converted = subprocess.check_output(
+            [
+                str(tool_path("ffmpeg")),
+                "-v",
+                "error",
+                "-i",
+                str(result.path),
+                "-ar",
+                "8000",
+                "-ac",
+                "1",
+                "-f",
+                "s16le",
+                "-",
+            ]
+        )
+        self.assertEqual(len(converted), 1600)
+        self.assert_destination_has_only(result.path)
 
     def test_real_spawn_conversion_and_saved_destination_produce_playable_mp3(self):
         events = []

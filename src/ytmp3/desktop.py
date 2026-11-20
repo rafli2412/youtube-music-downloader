@@ -32,6 +32,7 @@ class DesktopApi:
         self._cover_data: bytes | None = None
         self._cover_job_id: str | None = None
         self._cover_name: str | None = None
+        self._audio_cancel = threading.Event()
         self._history_lock = threading.Lock()
         self._history_undo: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
@@ -133,21 +134,30 @@ class DesktopApi:
                 "url": record["url"],
                 "filename": record["filename"],
                 "tags": record["tags"],
+                "trim": record.get("trim"),
                 "cover": cover,
                 "warning": record.get("warning"),
             }
 
     def save_draft(
-        self, url: str, filename: str, tags: dict[str, Any], preview_id: str | None = None
+        self,
+        url: str,
+        filename: str,
+        tags: dict[str, Any],
+        preview_id: str | None = None,
+        trim: dict[str, Any] | None = None,
     ) -> dict[str, bool]:
         with self._dialog_lock:
             cover = self._cover_data if self._cover_job_id == preview_id else None
-            self._jobs.save_draft(url, filename, tags, preview_id, cover, self._cover_name)
+            self._jobs.save_draft(url, filename, tags, preview_id, cover, self._cover_name, trim)
             return {"saved": True}
 
     def clear_draft(self) -> dict[str, bool]:
         with self._dialog_lock:
             self._jobs.clear_draft()
+            clear_audio = getattr(self._jobs._engine, "clear_audio_preview", None)
+            if clear_audio is not None:
+                clear_audio()
             self._cover_data = None
             self._cover_name = None
             self._cover_job_id = None
@@ -161,16 +171,28 @@ class DesktopApi:
             self._cover_job_id = None
             return state
 
+    def load_audio_preview(self, preview_id: str) -> int:
+        with self._dialog_lock:
+            url = self._jobs.audio_preview_url(preview_id)
+            return self._jobs._engine.prepare_audio_preview(url, self._audio_cancel)
+
+    def read_audio_preview(self, preview_id: str, offset: int) -> str:
+        with self._dialog_lock:
+            url = self._jobs.audio_preview_url(preview_id)
+            data = self._jobs._engine.read_audio_preview(url, offset)
+            return base64.b64encode(data).decode("ascii")
+
     def start_download(
         self,
         url: str,
         preview_job_id: str,
         filename: str | None = None,
         tags: dict[str, Any] | None = None,
+        trim: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         with self._dialog_lock:
             cover = self._cover_data if self._cover_job_id == preview_job_id else None
-            return self._jobs.confirm(url, preview_job_id, filename, tags, cover)
+            return self._jobs.confirm(url, preview_job_id, filename, tags, cover, trim)
 
     def choose_cover(self) -> dict[str, str] | None:
         with self._dialog_lock:
@@ -365,6 +387,7 @@ def launch_desktop(
     def on_closing() -> bool:
         if allow_close.is_set():
             return True
+        api._audio_cancel.set()
         api._jobs.shutdown()
         close_requested.set()
         return False
@@ -385,6 +408,7 @@ def launch_desktop(
             if closed.is_set():
                 return
             if dev_close_file and Path(dev_close_file).is_file():
+                api._audio_cancel.set()
                 api._jobs.shutdown()
                 close_requested.set()
         if closed.is_set():
@@ -430,6 +454,11 @@ def launch_desktop(
             paste_cleanup()
         api._jobs.shutdown()
         api._jobs.wait()
+        api._audio_cancel.set()
+        with api._dialog_lock:
+            clear_audio = getattr(api._jobs._engine, "clear_audio_preview", None)
+            if clear_audio is not None:
+                clear_audio()
         closed.set()
         close_requested.set()
         if smoke_report is not None and not result["completed"]:
