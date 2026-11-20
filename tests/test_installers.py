@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from scripts.build_installers import write_checksums
 from scripts.fetch_tools import validate_asset
@@ -36,7 +37,16 @@ class InstallerManifestTests(unittest.TestCase):
         validate_asset(asset)
         self.assertEqual(asset["sha256"], asset["output_sha256"])
         self.assertEqual(asset["output"], "MicrosoftEdgeWebview2Setup.exe")
-        self.assertTrue(asset["url"].startswith("https://go.microsoft.com/"))
+        # The evergreen fwlink changes over time; build from a reviewed CDN snapshot.
+        parsed = urlsplit(asset["url"])
+        self.assertEqual(parsed.scheme, "https")
+        self.assertEqual(parsed.hostname, "msedge.sf.dl.delivery.mp.microsoft.com")
+        self.assertRegex(
+            parsed.path,
+            r"^/filestreamingservice/files/[0-9a-f-]{36}/MicrosoftEdgeWebview2Setup\.exe$",
+        )
+        self.assertFalse(parsed.query)
+        self.assertEqual(asset["source_url"], "https://go.microsoft.com/fwlink/p/?LinkId=2124703")
 
 
 @unittest.skipUnless(os.name == "posix", "macOS helper requires a POSIX shell")

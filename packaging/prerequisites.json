@@ -2,12 +2,13 @@
   "schema_version": 1,
   "webview2": {
     "output": "MicrosoftEdgeWebview2Setup.exe",
-    "url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
-    "sha256": "cf2f2445fef0c5c14e372045f84998771eeb8bb01d59be4afd00692fa160082e",
-    "output_sha256": "cf2f2445fef0c5c14e372045f84998771eeb8bb01d59be4afd00692fa160082e",
+    "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/cc1101bc-3d8a-4c67-8678-b753ccdc08ad/MicrosoftEdgeWebview2Setup.exe",
+    "sha256": "fc2972da71d43e0c57b8d85a5cb9b200ed221f723cf43052d08ca722eb0bb22e",
+    "output_sha256": "fc2972da71d43e0c57b8d85a5cb9b200ed221f723cf43052d08ca722eb0bb22e",
     "format": "raw",
     "executable": true,
     "documentation": "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution",
-    "note": "Official Evergreen bootstrapper snapshot, downloaded 2026-11-12. Microsoft may replace this URL's content; checksum mismatches must be reviewed and repinned. Windows builds also verify its Microsoft Authenticode signature. Runtime installation needs internet only when WebView2 is missing."
+    "note": "Official Evergreen bootstrapper snapshot reviewed 2026-11-20, pinned to its specific Microsoft CDN resource rather than the rotating source_url. Checksum mismatches must be reviewed and repinned. Windows builds also verify its Microsoft Authenticode signature. Runtime installation needs internet only when WebView2 is missing.",
+    "source_url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
   }
 }
