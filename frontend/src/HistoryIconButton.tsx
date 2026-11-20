@@ -25,5 +25,5 @@ export function HistoryIconButton({ icon, label, hint, className = '', ...props 
     'remove-selected': 'Remove the selected history entries only. All MP3 files are kept.',
   };
   const tooltip = hint ? `${descriptions[icon]} ${hint}` : descriptions[icon];
-  return <span className="history-icon-wrap"><TooltipButton tooltip={tooltip} {...props} type="button" className={`history-icon-button ${className}`} aria-label={label}><Icon name={icon} /></TooltipButton></span>;
+  return <span className="history-icon-wrap"><TooltipButton tooltip={tooltip} {...props} iconOnly type="button" className={`history-icon-button ${className}`} aria-label={label}><Icon name={icon} /></TooltipButton></span>;
 }
