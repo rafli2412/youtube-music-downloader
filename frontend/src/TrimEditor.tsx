@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { AudioTrim, DesktopClient } from './desktop';
 
 const format = (seconds: number) => {
@@ -15,6 +15,8 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
   const objectUrl = useRef('');
   const mounted = useRef(false);
   const [source, setSource] = useState('');
+  const [expanded, setExpanded] = useState(false);
+  const panelId = useId();
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,6 +44,7 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
       objectUrl.current = URL.createObjectURL(new Blob(chunks, { type: 'audio/mpeg' }));
       setSource(objectUrl.current);
+      setExpanded(true);
     } catch (failure) {
       if (mounted.current) setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
@@ -72,7 +75,21 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
   };
 
   return <section className="trim-editor" aria-label="Listen and trim">
-    {!source && <button type="button" className="secondary-button" disabled={disabled || loading} onClick={() => void load()}>{loading ? 'Loading audio…' : error ? 'Retry audio preview' : 'Listen & trim'}</button>}
+    <button type="button" className="secondary-button" disabled={disabled || loading}
+      aria-expanded={expanded} aria-controls={panelId} onClick={() => {
+        if (!source) {
+          void load();
+          return;
+        }
+        if (expanded) {
+          audio.current?.pause();
+          stopAt.current = null;
+        }
+        setExpanded(!expanded);
+      }}>
+      {expanded ? 'Close Listen & trim' : loading ? 'Loading audio…' : !source && error ? 'Retry audio preview' : 'Listen & trim'}
+    </button>
+    <div id={panelId} className="trim-panel" hidden={!expanded}>
     {source && <audio ref={audio} controls src={source} onLoadedMetadata={event => {
       const seconds = event.currentTarget.duration;
       if (Number.isFinite(seconds)) setDuration(seconds);
@@ -111,10 +128,11 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
         <button type="button" className="secondary-button" disabled={!trim} onClick={() => { audio.current?.pause(); setError(''); onChange(null); }}>Reset trim</button>
       </div>
     </fieldset>}
-    {!source && trim && <div className="trim-actions">
+    </div>
+    {!expanded && trim && <div className="trim-actions">
       <p className="folder-hint">Saved trim: {format(start)} to {trim.end === null ? 'the end' : format(trim.end)}</p>
       <button type="button" className="secondary-button" disabled={disabled} onClick={() => onChange(null)}>Reset trim</button>
     </div>}
-    {error && <p className="error-message" role="alert">{error}</p>}
+    {error && (expanded || !source) && <p className="error-message" role="alert">{error}</p>}
   </section>;
 }
