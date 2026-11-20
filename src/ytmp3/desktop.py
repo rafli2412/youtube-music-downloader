@@ -17,7 +17,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from ytmp3 import APP_NAME, __version__
-from ytmp3.desktop_jobs import DesktopJobs
+from ytmp3.desktop_jobs import DesktopJobs, download_error_message
 from ytmp3.diagnostics import collect_diagnostics, write_report
 from ytmp3.runtime import app_info, frontend_directory, is_packaged, resource_root
 from ytmp3.tags import MAX_COVER_BYTES, image_mime
@@ -174,7 +174,10 @@ class DesktopApi:
     def load_audio_preview(self, preview_id: str) -> int:
         with self._dialog_lock:
             url = self._jobs.audio_preview_url(preview_id)
-            return self._jobs._engine.prepare_audio_preview(url, self._audio_cancel)
+            try:
+                return self._jobs._engine.prepare_audio_preview(url, self._audio_cancel)
+            except Exception as error:
+                raise RuntimeError(download_error_message(error, audio_preview=True)) from error
 
     def read_audio_preview(self, preview_id: str, offset: int) -> str:
         with self._dialog_lock:

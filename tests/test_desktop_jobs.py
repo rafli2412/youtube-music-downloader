@@ -150,6 +150,27 @@ class DesktopJobsTests(unittest.TestCase):
             api.start_download(URL, self.jobs.snapshot()["job_id"], tags={"cover": "local"})
         self.assertEqual(self.engine.download.call_count, 1)
 
+    def test_audio_preview_verification_error_is_readable_and_can_be_retried(self):
+        self.engine.preview = Mock(return_value={"title": "Example"})
+        self.engine.prepare_audio_preview = Mock(
+            side_effect=[
+                RuntimeError(
+                    "\x1b[0;31mERROR:\x1b[0m Sign in to confirm you're not a bot. Use --cookies."
+                ),
+                1024,
+            ]
+        )
+        api = DesktopApi(jobs=self.jobs)
+        api.preview_video(URL)
+        self.jobs.wait(2)
+        preview_id = self.jobs.snapshot()["preview_id"]
+        with self.assertRaisesRegex(RuntimeError, "YouTube is asking for verification") as caught:
+            api.load_audio_preview(preview_id)
+        self.assertNotIn("--cookies", str(caught.exception))
+        self.assertNotIn("\x1b", str(caught.exception))
+        self.assertEqual(self.jobs.snapshot()["status"], "ready")
+        self.assertEqual(api.load_audio_preview(preview_id), 1024)
+
     def test_failed_preview_cannot_be_retried_as_an_approved_download(self):
         self.engine.preview = Mock(side_effect=RuntimeError("Verification required"))
         api = DesktopApi(jobs=self.jobs)

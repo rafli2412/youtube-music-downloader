@@ -17,10 +17,16 @@ from ytmp3.trim import trim_points
 from ytmp3.urls import normalize_youtube_url
 
 
-def download_error_message(error: Exception) -> str:
-    message = str(error)
+def download_error_message(error: Exception, *, audio_preview: bool = False) -> str:
+    message = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", str(error))
+    message = "".join(char for char in message if char.isprintable() or char in "\n\t").strip()
     lower = message.lower()
     if "not a bot" in lower or "sign in to confirm" in lower:
+        if audio_preview:
+            return (
+                "YouTube is asking for verification before it will play this audio preview. "
+                "Wait a few minutes, then retry the preview or choose another public video."
+            )
         return (
             "YouTube blocked this request for verification. No new MP3 was saved. "
             "Wait a few minutes before retrying. If it persists, try a different network "

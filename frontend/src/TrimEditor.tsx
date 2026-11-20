@@ -72,7 +72,7 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
   };
 
   return <section className="trim-editor" aria-label="Listen and trim">
-    {!source && <button type="button" className="secondary-button" disabled={disabled || loading} onClick={() => void load()}>{loading ? 'Loading audio…' : 'Listen & trim'}</button>}
+    {!source && <button type="button" className="secondary-button" disabled={disabled || loading} onClick={() => void load()}>{loading ? 'Loading audio…' : error ? 'Retry audio preview' : 'Listen & trim'}</button>}
     {source && <audio ref={audio} controls src={source} onLoadedMetadata={event => {
       const seconds = event.currentTarget.duration;
       if (Number.isFinite(seconds)) setDuration(seconds);
