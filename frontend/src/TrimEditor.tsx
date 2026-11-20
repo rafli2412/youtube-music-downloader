@@ -6,8 +6,9 @@ const format = (seconds: number) => {
   return `${Math.floor(tenths / 600)}:${String(Math.floor(tenths / 10) % 60).padStart(2, '0')}.${tenths % 10}`;
 };
 
-export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoading }: {
+export function TrimEditor({ client, previewId, trim, videoDuration, onChange, disabled, onLoading }: {
   client: DesktopClient; previewId: string; trim: AudioTrim | null;
+  videoDuration: number | null;
   onChange: (trim: AudioTrim | null) => void; disabled: boolean; onLoading: (value: boolean) => void;
 }) {
   const audio = useRef<HTMLAudioElement>(null);
@@ -55,6 +56,8 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
 
   const start = trim?.start ?? 0;
   const end = trim?.end ?? duration;
+  const keptEnd = trim?.end ?? (duration || videoDuration);
+  const hasTrim = start > 0 || trim?.end != null;
   const update = (boundary: 'start' | 'end', value: number) => {
     const nextStart = boundary === 'start' ? value : start;
     const nextEnd = boundary === 'end' ? value : end;
@@ -63,8 +66,13 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
       return;
     }
     audio.current?.pause();
+    stopAt.current = null;
     setError('');
-    onChange({ start: nextStart, end: nextEnd >= duration ? null : nextEnd });
+    const endPoint = nextEnd >= duration ? null : nextEnd;
+    onChange(nextStart > 0 || endPoint !== null ? { start: nextStart, end: endPoint } : null);
+  };
+  const setFromPlayhead = (boundary: 'start' | 'end') => {
+    if (audio.current) update(boundary, audio.current.currentTime);
   };
   const play = async (from: number, to: number) => {
     if (!audio.current) return;
@@ -73,6 +81,7 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
     try { await audio.current.play(); }
     catch { setError('Could not play this audio preview.'); }
   };
+  const checkCut = (cut: number) => play(Math.max(0, cut - 3), Math.min(duration, cut + 3));
 
   return <section className="trim-editor" aria-label="Listen and trim">
     <button type="button" className="secondary-button" disabled={disabled || loading}
@@ -121,16 +130,27 @@ export function TrimEditor({ client, previewId, trim, onChange, disabled, onLoad
         </div>;
       })}
       <p className="folder-hint">Keeping {format(Math.max(0, end - start))} of {format(duration)}</p>
+      <div className="trim-actions trim-playhead-actions">
+        <button type="button" className="secondary-button" onClick={() => setFromPlayhead('start')}>Set start here</button>
+        <button type="button" className="secondary-button" onClick={() => setFromPlayhead('end')}>Set end here</button>
+      </div>
       <div className="trim-actions">
         <button type="button" className="secondary-button" onClick={() => void play(start, end)}>Play selection</button>
-        <button type="button" className="secondary-button" onClick={() => void play(start, Math.min(end, start + 4))}>Check start</button>
-        <button type="button" className="secondary-button" onClick={() => void play(Math.max(start, end - 4), end)}>Check end</button>
-        <button type="button" className="secondary-button" disabled={!trim} onClick={() => { audio.current?.pause(); setError(''); onChange(null); }}>Reset trim</button>
+        <button type="button" className="secondary-button" onClick={() => void checkCut(start)}>Check start</button>
+        <button type="button" className="secondary-button" onClick={() => void checkCut(end)}>Check end</button>
+        <button type="button" className="secondary-button" disabled={!hasTrim} onClick={() => {
+          audio.current?.pause();
+          stopAt.current = null;
+          setError('');
+          onChange(null);
+        }}>Reset trim</button>
       </div>
     </fieldset>}
     </div>
-    {!expanded && trim && <div className="trim-actions">
-      <p className="folder-hint">Saved trim: {format(start)} to {trim.end === null ? 'the end' : format(trim.end)}</p>
+    {!expanded && hasTrim && <div className="trim-actions">
+      <p className="folder-hint">Keeping {format(start)}–{keptEnd === null ? 'end' : format(keptEnd)}
+        {keptEnd !== null && ` · ${format(Math.max(0, keptEnd - start))}`}
+      </p>
       <button type="button" className="secondary-button" disabled={disabled} onClick={() => onChange(null)}>Reset trim</button>
     </div>}
     {error && (expanded || !source) && <p className="error-message" role="alert">{error}</p>}

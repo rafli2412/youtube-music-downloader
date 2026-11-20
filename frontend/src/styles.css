@@ -197,3 +197,4 @@ button[data-tooltip]:hover::after, button[data-tooltip]:focus-visible::after { c
 .trim-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .trim-track { position: relative; height: 5px; margin: 4px 0 8px; background: #e2e6dc; border-radius: 4px; }
 .trim-track > div { position: absolute; inset-block: 0; background: #355446; border-radius: inherit; }
+.trim-playhead-actions { margin-bottom: 8px; }
