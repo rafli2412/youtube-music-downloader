@@ -138,3 +138,49 @@ progress { width: 100%; height: 7px; margin-top: 12px; accent-color: #557b62; }
 .tag-info-button:focus-visible { outline: 2px solid #9fc5b2; outline-offset: 2px; }
 .tag-tooltip { position: absolute; bottom: calc(100% + 8px); left: -70px; z-index: 2; width: 200px; padding: 9px 11px; border-radius: 7px; background: #355446; color: #fff; font-size: 11px; font-weight: 400; line-height: 1.5; box-shadow: 0 3px 12px #243b3020; visibility: hidden; opacity: 0; pointer-events: none; }
 .tag-info:hover .tag-tooltip, .tag-info:focus-within .tag-tooltip { visibility: visible; opacity: 1; }
+
+.view-nav { display: flex; gap: 6px; margin: 0 0 24px; }
+.view-nav button { border: 0; border-radius: 7px; background: transparent; color: #5c645e; padding: 9px 16px; cursor: pointer; font-size: 12px; }
+.view-nav button[aria-current="page"] { background: #355446; color: #fff; }
+.history-view { margin-top: 8px; }
+.history-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.history-list { list-style: none; padding: 0; margin: 12px 0; }
+.history-entry { border-top: 1px solid #e2e6dc; padding: 10px 12px; border-radius: 7px; }
+.history-entry h3 { font-size: 15px; margin: 0 0 7px; overflow-wrap: anywhere; }
+.history-filename { font-size: 12px; color: #5c645e; overflow-wrap: anywhere; margin: 0 0 4px; }
+.history-time { position: relative; display: inline-block; font-size: 11px; color: #7a847c; margin-bottom: 0; cursor: help; }
+.history-date-tooltip { visibility: hidden; position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 3; width: max-content; max-width: 250px; padding: 8px; border-radius: 6px; color: white; background: #355446; }
+.history-time:hover .history-date-tooltip, .history-time:focus .history-date-tooltip { visibility: visible; }
+.history-remove { padding: 7px; border: 0; background: transparent; color: #94452f; font-size: 11px; cursor: pointer; }
+.history-confirm { border: 1px solid #dce2d7; border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 12px; }
+.history-confirm button + button { margin-left: 8px; }
+
+.history-search { margin: 18px 0; }
+.history-search-controls { display: flex; align-items: center; gap: 8px; }
+.history-search input { padding: 0 12px; min-width: 0; flex: 1; }
+.history-search-controls button { flex-shrink: 0; }
+
+.history-selection { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border-top: 1px solid #e2e6dc; color: #5c645e; font-size: 11px; }
+.history-select-all { display: inline-flex; align-items: center; gap: 7px; margin: 0; }
+.history-select-all input, .history-select-entry { width: 16px; height: 16px; flex-shrink: 0; margin: 0; padding: 0; accent-color: #355446; }
+.history-entry-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.history-entry-heading h3 { margin: 0; }
+.history-entry.selected { background: #f5f8f3; }
+
+.history-entry-heading h3 { flex: 1; min-width: 0; }
+.history-entry-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
+.history-icon-wrap { display: inline-flex; flex-shrink: 0; }
+.history-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #526c5d; cursor: pointer; }
+.history-icon-button:hover:not(:disabled) { background: #edf2ea; border-color: #dce2d7; }
+.history-icon-button:disabled { opacity: .4; cursor: default; }
+.history-remove-icon { color: #94452f; }
+.history-entry-heading { align-items: flex-start; }
+.history-entry-heading > .history-select-entry { margin-top: 6px; }
+.history-entry-heading h3 { padding-top: 4px; }
+
+button[data-tooltip] { position: relative; }
+button[data-tooltip]:hover::after, button[data-tooltip]:focus-visible::after { content: attr(data-tooltip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 10; width: 200px; max-width: 75vw; padding: 9px 11px; border-radius: 7px; background: #355446; color: #fff; font-size: 11px; font-weight: 400; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; text-align: left; box-shadow: 0 3px 12px #243b3020; pointer-events: none; }
+.history-entry-actions button[data-tooltip]:hover::after, .history-entry-actions button[data-tooltip]:focus-visible::after { right: 0; left: auto; transform: none; }
+
+.history-count { font-size: 11px; color: #6b786d; margin: -5px 0 14px; }
+.history-undo { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 12px; margin: 12px 0; border-radius: 7px; background: #eaf1e8; color: #355446; font-size: 12px; }

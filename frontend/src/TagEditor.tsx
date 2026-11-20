@@ -1,3 +1,4 @@
+import { TooltipButton } from './TooltipButton';
 import { useEffect, useState } from 'react';
 import type { CoverSelection, SongTags } from './desktop';
 
@@ -42,13 +43,13 @@ export function TagEditor({ value, onChange, cover, thumbnail, onChooseCover, di
       <p className="folder-hint">Year defaults to the video publication year. Verify the album, year, and track number before saving.</p>
       <label htmlFor="cover-source">Album cover</label><div className="cover-controls"><select id="cover-source" value={value.cover} onChange={event => onChange({ ...value, cover: event.target.value as SongTags['cover'] })}><option value="thumbnail" disabled={!thumbnail}>Video thumbnail</option><option value="local">Select an image</option><option value="none">No cover</option></select></div>
       {value.cover === 'local' && <>
-        <button type="button" className={`cover-dropzone${dragging ? ' dragging' : ''}`} aria-label="Select cover image: browse, drop, or paste" onClick={() => { setImageError(''); onChooseCover(); }}
+        <TooltipButton tooltip="Browse for an album cover, or drop or paste an image while no text field is focused." type="button" className={`cover-dropzone${dragging ? ' dragging' : ''}`} aria-label="Select cover image: browse, drop, or paste" onClick={() => { setImageError(''); onChooseCover(); }}
           onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; if (!disabled && value.enabled) setDragging(true); }}
           onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); receive(Array.from(event.dataTransfer.files), 'drop'); }}>
           <svg aria-hidden="true" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="8" width="31" height="27" rx="3"/><path d="M12 40h30V16M7 29l9-9 8 8 5-5 8 8"/><circle cx="28" cy="16" r="3"/></svg>
           <span>Choose an image</span><span className="cover-drop-hint">Click to browse · Drag &amp; drop · Copy &amp; paste</span>
           <span className="cover-drop-hint">JPEG, PNG or WebP · Up to 10 MB</span>
-        </button>
+        </TooltipButton>
         {imageError && <p role="alert" className="error-message">{imageError}</p>}
       </>}
       {value.cover === 'local' && <p className="folder-hint">{cover?.name ?? 'Choose a JPEG, PNG, or WebP image (up to 10 MB).'}</p>}

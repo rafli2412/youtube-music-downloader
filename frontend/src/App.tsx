@@ -1,3 +1,5 @@
+import { TooltipButton } from './TooltipButton';
+import { HistoryView } from './HistoryView';
 import { DraftWriteQueue } from './draft-storage';
 import { reviewablePreview } from './download-draft';
 import { TagEditor } from './TagEditor';
@@ -16,6 +18,7 @@ function MusicIcon() {
 }
 
 export function App() {
+  const [view, setView] = useState<'download' | 'history'>('download');
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [url, setUrl] = useState('');
@@ -141,7 +144,7 @@ export function App() {
     if (!previewJobId) { setJob(emptyJob); setFilename(''); }
     try {
       await persistDraft.current();
-      const state = await client.current.call(api => previewJobId ? api.start_download(url, previewJobId, filename.trim(), tags) : api.preview_video(url));
+      const state = await client.current.call(api => previewJobId ? api.start_download(url, previewJobId, filename.trim(), { ...tags, parsed_title: defaultSongTags(job.metadata).title }) : api.preview_video(url));
       if (!closingRef.current) { setJob(state); if (state.directory) setDirectory(state.directory); }
     } catch (failure) { if (!closingRef.current) setError(message(failure)); }
     finally { if (!closingRef.current) setPending(false); }
@@ -220,7 +223,7 @@ export function App() {
       const focused = document.activeElement;
       const editing = focused instanceof HTMLElement
         && (focused.matches('input, textarea, select') || focused.isContentEditable);
-      if (canReview && tags.enabled && tags.cover === 'local' && !disabled && !editing) {
+      if (view === 'download' && canReview && tags.enabled && tags.cover === 'local' && !disabled && !editing) {
         void chooseCover(undefined, 'paste');
       } else if (editing) {
         void client.current.call(api => api.paste_text()).catch(failure => setError(message(failure)));
@@ -236,31 +239,36 @@ export function App() {
       <span className="preview-badge">One link. One MP3.</span>
     </header>
     <main>
+      <nav className="view-nav" aria-label="App views"><TooltipButton tooltip="Preview a video and save its audio as an MP3." type="button" aria-current={view === 'download' ? 'page' : undefined} onClick={() => setView('download')}>Download</TooltipButton><TooltipButton tooltip="Browse, search, and manage your saved download history." type="button" aria-current={view === 'history' ? 'page' : undefined} onClick={() => setView('history')}>History</TooltipButton></nav>
+      {view === 'history' && client.current && <HistoryView client={client.current} revision={job.status === 'complete' ? job.job_id : null} />}
+      <div hidden={view !== 'download'}>
       <div className="intro"><span className="eyebrow">A little more listening</span><h1>Your music,<br />a link away.</h1><p>Save audio from YouTube and YouTube Music<br className="wide-break" /> to a folder on your computer.</p></div>
       <section className="download-card" aria-labelledby="download-heading" aria-busy={job.busy || pending}>
         <div className="card-heading"><h2 id="download-heading">Start with a link</h2><span className="format-label">MP3</span></div>
         <form onSubmit={event => { event.preventDefault(); void start(); }}>
           <label htmlFor="video-url">Video or song link</label>
           <div className="url-field"><span className="link-symbol" aria-hidden="true">↗</span><input ref={urlInput} id="video-url" type="url" required value={url} onChange={event => { ++epoch.current; setUrl(event.target.value); setFilename(''); setTags(defaultSongTags()); setCover(null); draftPreview.current = null; setJob(emptyJob); setError(null); }} disabled={disabled || job.busy} placeholder="Paste a YouTube or YouTube Music link" autoComplete="off" spellCheck={false} /></div>
-          <div className="folder-row"><div className="folder-copy"><span className="folder-label">Save to</span><span id="download-directory" className="folder-path" title={directory ?? ''}>{directory ?? 'Your default download folder'}</span></div><button id="choose-folder" className="secondary-button" type="button" onClick={() => void chooseFolder()} disabled={disabled || job.busy}>Choose folder</button></div>
+          <div className="folder-row"><div className="folder-copy"><span className="folder-label">Save to</span><span id="download-directory" className="folder-path" title={directory ?? ''}>{directory ?? 'Your default download folder'}</span></div><TooltipButton tooltip="Choose the default folder for future MP3 downloads." id="choose-folder" className="secondary-button" type="button" onClick={() => void chooseFolder()} disabled={disabled || job.busy}>Choose folder</TooltipButton></div>
           <p className="folder-hint">Remembered for future downloads, including the terminal app.</p>
-          {canReview && job.metadata && <div className="video-preview"><p className="status-heading">{job.status === 'ready' ? job.restored ? 'Saved download restored' : 'Is this the video you want?' : 'Review your details and retry'}</p><VideoDetails video={job.metadata} /><div className="filename-heading"><label htmlFor="download-filename">Filename (optional)</label><button id="restore-filename" className="secondary-button" type="button" disabled={disabled || filename === filenameTarget} onClick={() => setFilename(filenameTarget)}>{useParsedTitle ? 'Use parsed title' : 'Restore original'}</button></div><div className="filename-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><TagEditor suggestedAlbum={job.metadata.album_source === 'description' ? job.metadata.album : null} value={tags} onChange={setTags} cover={cover} thumbnail={job.metadata.thumbnail} onChooseCover={(file, source) => void chooseCover(file, source)} disabled={disabled} /><p className="status-detail">{job.status === 'ready' ? 'No audio has been downloaded. Review the details before continuing.' : 'Your filename, tags, and cover are kept. You can edit them or retry the download.'}</p></div>}
-          <div className="action-row"><button id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim() || (canReview && tags.enabled && tags.cover === 'local' && !cover)}>{pending || job.busy ? 'Please wait…' : canReview ? job.status === 'ready' ? job.restored ? 'Resume download' : 'Download MP3' : 'Retry download' : 'Preview video'}</button>{job.busy && <button id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</button>}</div>
+          {canReview && job.metadata && <div className="video-preview"><p className="status-heading">{job.status === 'ready' ? job.restored ? 'Saved download restored' : 'Is this the video you want?' : 'Review your details and retry'}</p><VideoDetails video={job.metadata} /><div className="filename-heading"><label htmlFor="download-filename">Filename (optional)</label><TooltipButton tooltip={useParsedTitle ? "Use the cleaned song title as the filename." : "Restore the original YouTube title as the filename."} id="restore-filename" className="secondary-button" type="button" disabled={disabled || filename === filenameTarget} onClick={() => setFilename(filenameTarget)}>{useParsedTitle ? 'Use parsed title' : 'Restore original'}</TooltipButton></div><div className="filename-field"><input id="download-filename" type="text" value={filename} onChange={event => setFilename(event.target.value)} placeholder={job.metadata.title ?? 'Video title'} disabled={disabled} autoComplete="off" /><span className="filename-extension">.mp3</span></div><p className="folder-hint">Suggested name is editable. Clear it to use the original title. Duplicate names get a number.</p><TagEditor suggestedAlbum={job.metadata.album_source === 'description' ? job.metadata.album : null} value={tags} onChange={setTags} cover={cover} thumbnail={job.metadata.thumbnail} onChooseCover={(file, source) => void chooseCover(file, source)} disabled={disabled || view !== 'download'} /><p className="status-detail">{job.status === 'ready' ? 'No audio has been downloaded. Review the details before continuing.' : 'Your filename, tags, and cover are kept. You can edit them or retry the download.'}</p></div>}
+          <div className="action-row"><TooltipButton tooltip={job.busy || pending ? "Wait for the current operation to finish." : canReview ? "Download the reviewed video as an MP3 with your filename, tags, and cover choices." : "Show video details for review before downloading any audio."} id="convert" className="convert-button" type="submit" disabled={disabled || job.busy || !directory || !url.trim() || (canReview && tags.enabled && tags.cover === 'local' && !cover)}>{pending || job.busy ? 'Please wait…' : canReview ? job.status === 'ready' ? job.restored ? 'Resume download' : 'Download MP3' : 'Retry download' : 'Preview video'}</TooltipButton>{job.busy && <TooltipButton tooltip="Stop this download and remove its unfinished audio files." id="cancel" type="button" className="secondary-button" onClick={() => void cancel()} disabled={disabled || job.status === 'cancelling'}>Cancel</TooltipButton>}</div>
         </form>
         {((job.status !== 'idle' && job.status !== 'ready') || closing) && <div className={`job-status ${job.status}`} data-testid="job-status">
           <p className="status-heading" role="status" aria-live="polite">{status}</p>
           {!canReview && job.metadata && <VideoDetails video={job.metadata} />}
           {job.busy && <progress max={1} value={fraction ?? undefined} aria-label={status} />}
-          {job.result && job.status === 'complete' && <div className="result"><p className="result-title">{job.result.title}</p><p className="result-path">{job.result.path}</p><button id="open-folder" type="button" className="secondary-button" onClick={() => void openFolder()} disabled={disabled}>Open folder</button><button id="convert-another" type="button" className="secondary-button" onClick={convertAnother} disabled={disabled}>Convert another video</button></div>}
+          {job.result && job.status === 'complete' && <div className="result"><p className="result-title">{job.result.title}</p><p className="result-path">{job.result.path}</p><TooltipButton tooltip="Open the folder containing your downloaded MP3." id="open-folder" type="button" className="secondary-button" onClick={() => void openFolder()} disabled={disabled}>Open folder</TooltipButton><TooltipButton tooltip="Clear the current link and start with another video." id="convert-another" type="button" className="secondary-button" onClick={convertAnother} disabled={disabled}>Convert another video</TooltipButton></div>}
           {job.status === 'cancelled' && <p className="status-detail">{canReview ? 'Temporary files have been removed. Your edits are kept for retry.' : 'Temporary files have been removed. Paste another link to try again.'}</p>}
+          {job.history_warning && <p className="error-message" role="alert">{job.history_warning}</p>}
           {job.error && <p className="error-message" role="alert">{job.error}</p>}
         </div>}
         {error && <p className="error-message" role="alert">{error}</p>}
         {draftStatus && <p className="folder-hint" role="status">{draftStatus}</p>}
         {draftError && <p className="error-message" role="alert">{draftError}</p>}
-        {(url.trim() || draftError) && !job.busy && <button type="button" className="secondary-button" disabled={disabled} onClick={convertAnother}>Clear saved draft</button>}
+        {(url.trim() || draftError) && !job.busy && <TooltipButton tooltip="Discard the saved download draft and clear its edits. Existing MP3s are kept." type="button" className="secondary-button" disabled={disabled} onClick={convertAnother}>Clear saved draft</TooltipButton>}
       </section>
       <div className="quiet-details"><span>One link at a time</span><span className="detail-dot" aria-hidden="true" /><span>Just the audio</span><span className="detail-dot" aria-hidden="true" /><span>On your computer</span></div>
+      </div>
     </main>
     <footer className="app-footer"><div className={`connection-status ${appInfo ? 'connected' : ''}`} role="status"><span className="status-dot" aria-hidden="true" /><span>{appInfo ? 'Ready on your desktop' : connectionError ?? 'Connecting to desktop…'}</span></div>{appInfo && <span className="app-version">v{appInfo.version}</span>}</footer>
   </div>;

@@ -10,6 +10,8 @@ import platform
 import subprocess
 import threading
 import time
+import uuid
+import webbrowser
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -30,6 +32,68 @@ class DesktopApi:
         self._cover_data: bytes | None = None
         self._cover_job_id: str | None = None
         self._cover_name: str | None = None
+        self._history_lock = threading.Lock()
+        self._history_undo: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+
+    def get_history(self, before: int | None = None, query: str = "") -> dict[str, Any]:
+        with self._history_lock:
+            self._prune_history_undo()
+            return self._jobs.history.page(before, query)
+
+    def remove_history(self, entry_id: int) -> None:
+        self._jobs.history.remove(entry_id)
+
+    def remove_history_many(self, entry_ids: list[int]) -> dict[str, int]:
+        return {"removed": self._jobs.history.remove_many(entry_ids)}
+
+    def _prune_history_undo(self) -> None:
+        now = time.monotonic()
+        self._history_undo = {
+            token: value for token, value in self._history_undo.items() if value[0] > now
+        }
+
+    def remove_history_undoable(self, entry_ids: list[int]) -> dict[str, Any]:
+        with self._history_lock:
+            self._prune_history_undo()
+            rows = self._jobs.history.take_for_undo(entry_ids)
+            token = uuid.uuid4().hex if rows else None
+            if token:
+                self._history_undo[token] = (time.monotonic() + 30, rows)
+            return {"removed": len(rows), "undo_token": token, "undo_seconds": 30}
+
+    def undo_history_removal(self, token: str) -> dict[str, int]:
+        with self._history_lock:
+            self._prune_history_undo()
+            if not isinstance(token, str) or token not in self._history_undo:
+                raise ValueError("This removal can no longer be undone.")
+            restored = self._jobs.history.restore(self._history_undo[token][1])
+            del self._history_undo[token]
+            return {"restored": restored}
+
+    def clear_history(self) -> None:
+        with self._history_lock:
+            self._jobs.history.clear()
+            self._history_undo.clear()
+
+    def open_history_youtube(self, entry_id: int) -> None:
+        from ytmp3.urls import normalize_youtube_url
+
+        entry = self._jobs.history.get(entry_id)
+        webbrowser.open(normalize_youtube_url(entry["url"]))
+
+    def reveal_history_file(self, entry_id: int) -> None:
+        entry = self._jobs.history.get(entry_id)
+        path = Path(entry["path"])
+        if not path.is_file():
+            raise ValueError(
+                "This file was moved or deleted. Its history entry is still available."
+            )
+        if platform.system() == "Darwin":
+            subprocess.run(["/usr/bin/open", "-R", str(path)], check=True, timeout=10)
+        elif platform.system() == "Windows":
+            subprocess.Popen(["explorer.exe", "/select,", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path.parent)])
 
     def get_app_info(self) -> dict[str, str | bool]:
         return app_info()

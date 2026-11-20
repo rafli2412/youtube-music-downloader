@@ -57,6 +57,23 @@ class CliTests(unittest.TestCase):
                 code = error.code
         return code, stdout.getvalue(), stderr.getvalue(), prompt
 
+    def test_success_is_shared_with_desktop_history_but_failures_are_not(self):
+        from ytmp3.history import HistoryStore
+
+        result = DownloadResult(self.result.path, "Video title", "jNQXAC9IVRw", "Saved song title")
+        with patch.object(cli, "DownloadEngine") as factory:
+            factory.return_value.download.return_value = result
+            code, _, stderr, _ = self.invoke(["download", URL])
+            self.assertEqual(code, 0, stderr)
+        entries = HistoryStore(self.store.path).page()["entries"]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["song_title"], "Saved song title")
+        with patch.object(cli, "DownloadEngine") as factory:
+            factory.return_value.download.side_effect = DownloadError("Failed")
+            code, _, _, _ = self.invoke(["download", URL])
+            self.assertNotEqual(code, 0)
+        self.assertEqual(len(HistoryStore(self.store.path).page()["entries"]), 1)
+
     def test_url_shortcut_and_explicit_download_both_report_saved_path(self):
         for arguments in ([URL], ["download", URL]):
             with self.subTest(arguments=arguments), patch.object(cli, "DownloadEngine") as factory:

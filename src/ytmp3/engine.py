@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ytmp3.history import fallback_song_title
 from ytmp3.runtime import tool_path
 from ytmp3.settings import SettingsStore, prepare_download_directory
 from ytmp3.tags import (
@@ -79,6 +80,7 @@ class DownloadResult:
     path: Path
     title: str
     video_id: str
+    song_title: str = ""
 
 
 def validate_content(info: dict[str, Any]) -> None:
@@ -423,7 +425,13 @@ class DownloadEngine:
                 stem = safe_stem(custom_name or item["title"], item["id"])
                 self._check_cancel(cancellation)
                 result = DownloadResult(
-                    publish_mp3(mp3, destination, stem), item["title"], item["id"]
+                    publish_mp3(mp3, destination, stem),
+                    item["title"],
+                    item["id"],
+                    (tag_options["title"] if tag_options["enabled"] else "")
+                    or (tags or {}).get("parsed_title")
+                    or fallback_song_title(metadata)
+                    or item["title"],
                 )
             # Publication is the commit point. A late cancellation cannot remove a completed file.
             if on_progress is not None:
